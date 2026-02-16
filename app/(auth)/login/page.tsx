@@ -1,0 +1,93 @@
+// app/(auth)/login/page.tsx
+'use client';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase/client';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast.error('Invalid credentials');
+        return;
+      }
+
+      if (data.session) {
+        // Session is automatically stored in localStorage by Supabase
+        toast.success('Login successful!');
+        router.push('/');
+        router.refresh(); // Force refresh to update middleware
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <div className="bg-cream-light p-8 rounded-xl border-2 border-sage shadow-lg">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-lavender rounded-full mx-auto mb-4 flex items-center justify-center text-4xl">
+              💰
+            </div>
+            <h1 className="text-2xl font-bold text-primary mb-2">Suncrest Agro Loan</h1>
+            <p className="text-secondary">Sign in to your account</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="admin@loanapp.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center text-xs text-secondary opacity-70">
+            © 2026 Suncrest Agro Loan Management System
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
