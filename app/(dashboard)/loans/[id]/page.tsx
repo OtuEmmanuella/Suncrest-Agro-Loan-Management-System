@@ -9,7 +9,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { ArrowLeft, TrendingUp, DollarSign, Calendar, CheckCircle, Clock } from 'lucide-react';
-
+import { useAuth } from '@/lib/hooks/useAuth';
+import { EditInterestModal } from '@/components/loans/EditInterestModal'
+import { Edit } from 'lucide-react';
 interface Loan {
   id: string;
   loan_amount: number;
@@ -46,6 +48,9 @@ export default function LoanDetailsPage() {
   const [loan, setLoan] = useState<Loan | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { isAdmin } = useAuth();
+const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (loanId) {
@@ -335,6 +340,18 @@ export default function LoanDetailsPage() {
                 >
                   {loan.status}
                 </span>
+                {isAdmin && loan.status !== 'completed' && (
+                    <div className="pt-4 border-t border-sage">
+                        <Button
+                        variant="secondary"
+                        onClick={() => setShowEditModal(true)}
+                        className="w-full"
+                        >
+                        <Edit size={16} className="mr-2" />
+                        Edit Interest Rate (Admin)
+                        </Button>
+                    </div>
+                    )}
               </div>
 
               <div>
@@ -380,6 +397,24 @@ export default function LoanDetailsPage() {
               </div>
             </div>
           </CardContent>
+          {showEditModal && (
+            <EditInterestModal
+                loan={{
+                id: loan.id,
+                loan_amount: loan.loan_amount,
+                interest_rate: loan.interest_rate,
+                total_due: loan.total_due,
+                total_paid: loan.total_paid || 0,
+                payment_plan: loan.payment_plan,
+                duration_months: loan.duration_months,
+                client_name: loan.clients?.full_name || '',
+                }}
+                onClose={() => setShowEditModal(false)}
+                onUpdate={() => {
+                fetchLoanDetails();
+                }}
+            />
+            )}
         </Card>
 
         {/* Payment History */}

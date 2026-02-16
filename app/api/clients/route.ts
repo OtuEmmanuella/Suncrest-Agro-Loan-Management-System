@@ -1,10 +1,14 @@
 // app/api/clients/route.ts
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET() {
   try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
     const { data, error } = await supabase
       .from('clients')
       .select('*')
@@ -24,20 +28,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const session = cookieStore.get('session');
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const body = await request.json();
     const { name, phone, address, id_card_number } = body;
 
-    // Get user ID from session (you'll need to decode the JWT or store it differently)
-    // For now, we'll use a placeholder - you should get the actual user ID
-    const { data: userData } = await supabase.auth.getUser(session.value);
-    const userId = userData?.user?.id;
+    // Get the authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { data, error } = await supabase
       .from('clients')
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
           phone_number: phone,
           address,
           id_card: id_card_number,
-          created_by: userId,
+          created_by: user.id,
         },
       ])
       .select()

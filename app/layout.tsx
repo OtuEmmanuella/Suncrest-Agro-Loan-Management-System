@@ -7,7 +7,7 @@ import { Toaster } from 'sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Loan Management System',
+  title: 'Suncrest Agro Loan Management System',
   description: 'Manage loans, clients, and repayments efficiently',
 };
 

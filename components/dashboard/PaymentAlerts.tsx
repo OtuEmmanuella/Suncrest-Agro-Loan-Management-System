@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { AlertCircle, Clock } from 'lucide-react';
 
 interface LoanAlert {
   id: string;
+  client_id: string;
   client_name: string;
   installment_amount: number;
   next_payment_date: string;
@@ -25,23 +26,29 @@ export function PaymentAlerts() {
 
   useEffect(() => {
     fetchAlerts();
+    // Refresh alerts every minute
+    const interval = setInterval(fetchAlerts, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchAlerts = async () => {
     const { data: loans } = await supabase
       .from('loans')
-      .select('*, clients(full_name)')
+      .select('*, clients(id, full_name)')
       .eq('status', 'disbursed');
 
     if (!loans) return;
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const alertsList: LoanAlert[] = [];
 
     loans.forEach((loan) => {
       if (!loan.next_payment_date) return;
 
       const dueDate = new Date(loan.next_payment_date);
+      dueDate.setHours(0, 0, 0, 0);
+      
       const diffTime = dueDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
@@ -55,11 +62,12 @@ export function PaymentAlerts() {
       } else if (diffDays <= 3) {
         status = 'due-soon';
       } else {
-        return; // Skip if not urgent
+        return;
       }
 
       alertsList.push({
         id: loan.id,
+        client_id: loan.clients?.id,
         client_name: loan.clients?.full_name || 'Unknown',
         installment_amount: loan.installment_amount,
         next_payment_date: loan.next_payment_date,
@@ -69,7 +77,6 @@ export function PaymentAlerts() {
       });
     });
 
-    // Sort: overdue first, then due today, then due soon
     alertsList.sort((a, b) => {
       const order = { overdue: 0, 'due-today': 1, 'due-soon': 2 };
       return order[a.status] - order[b.status];
@@ -78,12 +85,14 @@ export function PaymentAlerts() {
     setAlerts(alertsList);
   };
 
-  if (alerts.length === 0) {
-    return null;
-  }
+  if (alerts.length === 0) return null;
 
   const handleQuickPayment = (loanId: string) => {
     router.push(`/repayments?loan=${loanId}`);
+  };
+
+  const handleViewClient = (clientId: string) => {
+    router.push(`/clients/${clientId}`);
   };
 
   return (
@@ -109,12 +118,15 @@ export function PaymentAlerts() {
                 <div className="flex items-center gap-2 mb-1">
                   {alert.status === 'overdue' ? (
                     <AlertCircle size={16} className="text-red-600" />
-                  ) : alert.status === 'due-today' ? (
-                    <Clock size={16} className="text-yellow-600" />
                   ) : (
-                    <CheckCircle size={16} className="text-blue-600" />
+                    <Clock size={16} className={alert.status === 'due-today' ? 'text-yellow-600' : 'text-blue-600'} />
                   )}
-                  <span className="font-semibold">{alert.client_name}</span>
+                  <button
+                    onClick={() => handleViewClient(alert.client_id)}
+                    className="font-semibold hover:underline"
+                  >
+                    {alert.client_name}
+                  </button>
                 </div>
                 <div className="text-sm text-secondary">
                   {alert.status === 'overdue' && (
@@ -123,9 +135,7 @@ export function PaymentAlerts() {
                     </span>
                   )}
                   {alert.status === 'due-today' && (
-                    <span className="text-yellow-600 font-semibold">
-                      DUE TODAY
-                    </span>
+                    <span className="text-yellow-600 font-semibold">DUE TODAY</span>
                   )}
                   {alert.status === 'due-soon' && (
                     <span className="text-blue-600 font-semibold">
@@ -137,10 +147,10 @@ export function PaymentAlerts() {
                 </div>
                 <div className="mt-2 space-y-1 text-sm">
                   <div>
-                    Expected Payment: <strong>{formatCurrency(alert.installment_amount)}</strong>
+                    Expected: <strong>{formatCurrency(alert.installment_amount)}</strong>
                   </div>
                   <div>
-                    Balance Remaining: <strong>{formatCurrency(alert.balance_remaining)}</strong>
+                    Balance: <strong>{formatCurrency(alert.balance_remaining)}</strong>
                   </div>
                 </div>
               </div>
@@ -149,7 +159,7 @@ export function PaymentAlerts() {
                 onClick={() => handleQuickPayment(alert.id)}
                 className="ml-4"
               >
-                Record Payment
+                Pay Now
               </Button>
             </div>
           </div>

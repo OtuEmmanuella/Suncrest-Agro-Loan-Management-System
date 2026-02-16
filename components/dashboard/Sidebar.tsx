@@ -5,6 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
+import { useAuth } from '@/lib/hooks/useAuth';
 import { supabase } from '@/lib/supabase/client';
 import {
   LayoutDashboard,
@@ -14,21 +15,25 @@ import {
   CreditCard,
   TrendingUp,
   LogOut,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Clients', href: '/clients', icon: Users },
-  { name: 'Loans', href: '/loans', icon: Wallet },
-  { name: 'Pending', href: '/loans/pending', icon: Clock },
-  { name: 'Repayments', href: '/repayments', icon: CreditCard },
-  { name: 'Reports', href: '/reports', icon: TrendingUp },
-];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { isAdmin } = useAuth();
+
+  // Define navigation inside component so it can access isAdmin
+  const navigation = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Clients', href: '/clients', icon: Users },
+    { name: 'Loans', href: '/loans', icon: Wallet },
+    { name: 'Pending', href: '/loans/pending', icon: Clock },
+    { name: 'Repayments', href: '/repayments', icon: CreditCard },
+    { name: 'Reports', href: '/reports', icon: TrendingUp },
+    ...(isAdmin ? [{ name: 'Audit Trail', href: '/audit', icon: FileText }] : []),
+  ];
 
   const handleLogout = async () => {
     try {
@@ -47,7 +52,7 @@ export function Sidebar() {
       <div className="mb-8">
         <div className="flex items-center gap-2 text-2xl font-bold">
           <span>💰</span>
-          <span>Loan Manager</span>
+          <span>Suncrest Agro</span>
         </div>
       </div>
 

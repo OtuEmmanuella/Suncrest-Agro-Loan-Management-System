@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { formatPhone, formatDate } from '@/lib/utils/formatting';
+import { PaymentAlerts } from '@/components/dashboard/PaymentAlerts';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -59,7 +60,9 @@ export default function ClientsPage() {
           </Link>
         }
       />
-
+       
+       <PaymentAlerts />
+       
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full">
