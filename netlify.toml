@@ -1,7 +1,6 @@
 [build]
-  base = "loan-management-system"
   command = "npm run build"
-  publish = "loan-management-system/.next"
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "18"
