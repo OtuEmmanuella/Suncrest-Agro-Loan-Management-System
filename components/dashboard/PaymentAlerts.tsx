@@ -1,11 +1,14 @@
 // components/dashboard/PaymentAlerts.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
+import { getClientName, getClientId } from '@/lib/utils/supabase-helpers';
+import { useQuery } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/query-client';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Clock } from 'lucide-react';
 
@@ -21,69 +24,67 @@ interface LoanAlert {
 }
 
 export function PaymentAlerts() {
-  const [alerts, setAlerts] = useState<LoanAlert[]>([]);
   const router = useRouter();
 
-  useEffect(() => {
-    fetchAlerts();
-    // Refresh alerts every minute
-    const interval = setInterval(fetchAlerts, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // Use TanStack Query instead of manual fetching
+  const { data: alerts = [] } = useQuery({
+    queryKey: QUERY_KEYS.paymentAlerts,
+    queryFn: async (): Promise<LoanAlert[]> => {
+      const { data: loans } = await supabase
+        .from('loans')
+        .select('id, installment_amount, next_payment_date, total_due, total_paid, clients(id, full_name)')
+        .eq('status', 'disbursed')
+        .not('next_payment_date', 'is', null)
+        .limit(50);
 
-  const fetchAlerts = async () => {
-    const { data: loans } = await supabase
-      .from('loans')
-      .select('*, clients(id, full_name)')
-      .eq('status', 'disbursed');
+      if (!loans) return [];
 
-    if (!loans) return;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const alertsList: LoanAlert[] = [];
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const alertsList: LoanAlert[] = [];
+      loans.forEach((loan) => {
+        const dueDate = new Date(loan.next_payment_date!);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = dueDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        const balance = Number(loan.total_due) - Number(loan.total_paid || 0);
 
-    loans.forEach((loan) => {
-      if (!loan.next_payment_date) return;
+        let status: 'overdue' | 'due-today' | 'due-soon';
+        if (diffDays < 0) {
+          status = 'overdue';
+        } else if (diffDays === 0) {
+          status = 'due-today';
+        } else if (diffDays <= 3) {
+          status = 'due-soon';
+        } else {
+          return;
+        }
 
-      const dueDate = new Date(loan.next_payment_date);
-      dueDate.setHours(0, 0, 0, 0);
-      
-      const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      const balance = Number(loan.total_due) - Number(loan.total_paid || 0);
-
-      let status: 'overdue' | 'due-today' | 'due-soon';
-      if (diffDays < 0) {
-        status = 'overdue';
-      } else if (diffDays === 0) {
-        status = 'due-today';
-      } else if (diffDays <= 3) {
-        status = 'due-soon';
-      } else {
-        return;
-      }
-
-      alertsList.push({
-        id: loan.id,
-        client_id: loan.clients?.id,
-        client_name: loan.clients?.full_name || 'Unknown',
-        installment_amount: loan.installment_amount,
-        next_payment_date: loan.next_payment_date,
-        balance_remaining: balance,
-        days_until_due: diffDays,
-        status,
+        alertsList.push({
+          id: loan.id,
+          client_id: getClientId(loan.clients),
+          client_name: getClientName(loan.clients),
+          installment_amount: loan.installment_amount,
+          next_payment_date: loan.next_payment_date!,
+          balance_remaining: balance,
+          days_until_due: diffDays,
+          status,
+        });
       });
-    });
 
-    alertsList.sort((a, b) => {
-      const order = { overdue: 0, 'due-today': 1, 'due-soon': 2 };
-      return order[a.status] - order[b.status];
-    });
+      alertsList.sort((a, b) => {
+        const order = { overdue: 0, 'due-today': 1, 'due-soon': 2 };
+        return order[a.status] - order[b.status];
+      });
 
-    setAlerts(alertsList);
-  };
+      return alertsList;
+    },
+    staleTime: 1 * 60 * 1000, // Fresh for 1 minute
+    refetchInterval: 5 * 60 * 1000, // Background refetch every 5 minutes
+  });
 
   if (alerts.length === 0) return null;
 

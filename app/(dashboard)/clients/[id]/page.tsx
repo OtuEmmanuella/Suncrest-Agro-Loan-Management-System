@@ -113,11 +113,15 @@ export default function ClientDetailsPage() {
     );
   }
 
-  const totalLoaned = loans.reduce((sum, loan) => sum + Number(loan.loan_amount), 0);
-  const totalRepaid = loans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
-  const totalOutstanding = loans
-    .filter(l => l.status === 'disbursed')
-    .reduce((sum, loan) => sum + (Number(loan.total_due) - Number(loan.total_paid || 0)), 0);
+ const totalLoaned = loans.reduce((sum, loan) => sum + Number(loan.total_due), 0); // Changed from loan_amount to total_due
+const totalRepaid = loans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
+const totalOutstanding = loans
+  .filter(l => l.status === 'disbursed')
+  .reduce((sum, loan) => sum + (Number(loan.total_due) - Number(loan.total_paid || 0)), 0);
+const totalInterest = loans.reduce((sum, loan) => {
+  const interest = Number(loan.total_due) - Number(loan.loan_amount);
+  return sum + interest;
+}, 0);
 
   return (
     <div>
@@ -132,33 +136,33 @@ export default function ClientDetailsPage() {
         }
       />
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="text-sm text-blue-600">Total Loaned</div>
-            <div className="text-2xl font-bold text-blue-900">{formatCurrency(totalLoaned)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-6">
-            <div className="text-sm text-green-600">Total Repaid</div>
-            <div className="text-2xl font-bold text-green-900">{formatCurrency(totalRepaid)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-yellow-50 border-yellow-200">
-          <CardContent className="pt-6">
-            <div className="text-sm text-yellow-600">Outstanding</div>
-            <div className="text-2xl font-bold text-yellow-900">{formatCurrency(totalOutstanding)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-purple-50 border-purple-200">
-          <CardContent className="pt-6">
-            <div className="text-sm text-purple-600">Total Loans</div>
-            <div className="text-2xl font-bold text-purple-900">{loans.length}</div>
-          </CardContent>
-        </Card>
-      </div>
+     {/* Summary Stats */}
+<div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+  <Card className="bg-blue-50 border-blue-200">
+    <CardContent className="pt-4 pb-4">
+      <div className="text-xs text-blue-600">Total Due (Principal + Interest)</div>
+      <div className="text-xl font-bold text-blue-900">{formatCurrency(totalLoaned)}</div>
+    </CardContent>
+  </Card>
+  <Card className="bg-purple-50 border-purple-200">
+    <CardContent className="pt-4 pb-4">
+      <div className="text-xs text-purple-600">Total Interest</div>
+      <div className="text-xl font-bold text-purple-900">{formatCurrency(totalInterest)}</div>
+    </CardContent>
+  </Card>
+  <Card className="bg-green-50 border-green-200">
+    <CardContent className="pt-4 pb-4">
+      <div className="text-xs text-green-600">Total Repaid</div>
+      <div className="text-xl font-bold text-green-900">{formatCurrency(totalRepaid)}</div>
+    </CardContent>
+  </Card>
+  <Card className="bg-yellow-50 border-yellow-200">
+    <CardContent className="pt-4 pb-4">
+      <div className="text-xs text-yellow-600">Outstanding</div>
+      <div className="text-xl font-bold text-yellow-900">{formatCurrency(totalOutstanding)}</div>
+    </CardContent>
+  </Card>
+</div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Personal Information */}

@@ -10,6 +10,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { cache } from '@/lib/cache';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/query-client';
+
 
 interface ClientFormData {
   name: string;
@@ -26,18 +30,38 @@ interface ClientFormData {
 const NIGERIAN_BANKS = [
   { value: '', label: 'Select Bank' },
   { value: 'access', label: 'Access Bank' },
-  { value: 'gtbank', label: 'GTBank' },
-  { value: 'firstbank', label: 'First Bank' },
-  { value: 'uba', label: 'UBA' },
+  { value: 'gtbank', label: 'GTBank (Guaranty Trust Bank)' },
+  { value: 'firstbank', label: 'First Bank of Nigeria' },
+  { value: 'uba', label: 'UBA (United Bank for Africa)' },
   { value: 'zenith', label: 'Zenith Bank' },
   { value: 'fidelity', label: 'Fidelity Bank' },
   { value: 'union', label: 'Union Bank' },
   { value: 'sterling', label: 'Sterling Bank' },
-  { value: 'stanbic', label: 'Stanbic IBTC' },
-  { value: 'fcmb', label: 'FCMB' },
-  { value: 'ecobank', label: 'Ecobank' },
+  { value: 'stanbic', label: 'Stanbic IBTC Bank' },
+  { value: 'fcmb', label: 'FCMB (First City Monument Bank)' },
+  { value: 'ecobank', label: 'Ecobank Nigeria' },
   { value: 'wema', label: 'Wema Bank' },
   { value: 'unity', label: 'Unity Bank' },
+  { value: 'keystone', label: 'Keystone Bank' },
+  { value: 'polaris', label: 'Polaris Bank' },
+  { value: 'providus', label: 'Providus Bank' },
+  { value: 'heritage', label: 'Heritage Bank' },
+  { value: 'jaiz', label: 'Jaiz Bank' },
+  { value: 'suntrust', label: 'SunTrust Bank' },
+  { value: 'titan', label: 'Titan Trust Bank' },
+  { value: 'globus', label: 'Globus Bank' },
+  { value: 'parallex', label: 'Parallex Bank' },
+  { value: 'premium-trust', label: 'Premium Trust Bank' },
+  { value: 'taj', label: 'TAJ Bank' },
+  { value: 'lotus', label: 'Lotus Bank' },
+  { value: 'kuda', label: 'Kuda Bank' },
+  { value: 'opay', label: 'OPay' },
+  { value: 'palmpay', label: 'PalmPay' },
+  { value: 'moniepoint', label: 'Moniepoint MFB' },
+  { value: 'carbon', label: 'Carbon' },
+  { value: 'vfd', label: 'VFD Microfinance Bank' },
+  { value: 'rubies', label: 'Rubies Bank' },
+  { value: 'sparkle', label: 'Sparkle Microfinance Bank' },
 ];
 
 export function ClientForm() {
@@ -45,6 +69,7 @@ export function ClientForm() {
   const [accountName, setAccountName] = useState('');
   const [verifying, setVerifying] = useState(false);
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<ClientFormData>();
+  const queryClient = useQueryClient();
 
   const accountNumber = watch('account_number');
   const bankName = watch('bank_name');
@@ -86,41 +111,47 @@ export function ClientForm() {
 };
 
   const onSubmit = async (data: ClientFormData) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error('Not authenticated');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('clients')
-        .insert([
-          {
-            full_name: data.name,
-            phone_number: data.phone,
-            address: data.address,
-            id_card: data.id_card_number,
-            account_number: data.account_number,
-            bank_name: data.bank_name,
-            account_name: accountName,
-            guarantor_name: data.guarantor_name,
-            guarantor_phone: data.guarantor_phone,
-            guarantor_address: data.guarantor_address,
-            created_by: user.id,
-          },
-        ]);
-
-      if (error) throw error;
-
-      toast.success('Client registered successfully!');
-      router.push('/clients');
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast.error(error.message || 'Failed to register client');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      toast.error('Not authenticated');
+      return;
     }
-  };
+
+    const { error } = await supabase
+      .from('clients')
+      .insert([
+        {
+          full_name: data.name,
+          phone_number: data.phone,
+          address: data.address,
+          id_card: data.id_card_number,
+          account_number: data.account_number,
+          bank_name: data.bank_name,
+          account_name: accountName,
+          guarantor_name: data.guarantor_name,
+          guarantor_phone: data.guarantor_phone,
+          guarantor_address: data.guarantor_address,
+          created_by: user.id,
+        },
+      ]);
+
+    if (error) throw error;
+
+    // Clear caches after successful creation
+   queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardStats });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentLoans });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clients });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reportsStats });
+
+    toast.success('Client registered successfully!');
+    router.push('/clients');
+  } catch (error: any) {
+    console.error('Error:', error);
+    toast.error(error.message || 'Failed to register client');
+  }
+};
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils/formatting';
+import { cache } from '@/lib/cache';
 
 interface LoanFormData {
   client_id: string;

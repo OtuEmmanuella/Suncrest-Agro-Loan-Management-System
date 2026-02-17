@@ -145,6 +145,12 @@ const [showEditModal, setShowEditModal] = useState(false);
   const averagePayment = paymentsMade > 0 ? totalPaid / paymentsMade : 0;
   const isPayingAboveInstallment = averagePayment > loan.installment_amount;
 
+  // Interest calculation
+   const interestAmount = Number(loan.total_due) - Number(loan.loan_amount);
+
+// Then in the Loan Information card, update the grid to include:
+
+
   return (
     <div>
       <Header 
@@ -311,6 +317,11 @@ const [showEditModal, setShowEditModal] = useState(false);
                 <div className="text-sm text-secondary">Interest Rate</div>
                 <div className="font-semibold">{loan.interest_rate}%</div>
               </div>
+
+              <div>
+                <div className="text-sm text-secondary">Interest Amount</div>
+                <div className="font-semibold text-purple-600">{formatCurrency(interestAmount)}</div>
+                </div>
 
               <div>
                 <div className="text-sm text-secondary">Payment Plan</div>

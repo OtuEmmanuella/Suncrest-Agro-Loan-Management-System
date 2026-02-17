@@ -8,25 +8,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          DEFAULT: '#364132',
-          dark: '#2a3327',
-        },
-        secondary: {
-          DEFAULT: '#343733',
-        },
-        sage: {
-          DEFAULT: '#B3B5A6',
-          light: '#d4d5ca',
-        },
+        primary: '#364132',
+        secondary: '#343733',
+        sage: '#B3B5A6',
         cream: {
           DEFAULT: '#FEFBEE',
           light: '#FDFCF4',
         },
-        lavender: {
-          DEFAULT: '#AAA9C4',
-          light: '#c4c3d9',
-        },
+        lavender: '#AAA9C4',
+      },
+      fontSize: {
+        'xs': '0.7rem',
+        'sm': '0.8rem',
+        'base': '0.9rem',
+        'lg': '1rem',
+        'xl': '1.15rem',
+        '2xl': '1.4rem',
+        '3xl': '1.75rem',
+      },
+      spacing: {
+        '18': '4.5rem',
       },
     },
   },

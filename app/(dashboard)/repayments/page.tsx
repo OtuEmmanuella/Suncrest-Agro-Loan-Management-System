@@ -10,6 +10,8 @@ import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { QUERY_KEYS } from '@/lib/query-client';
 
 interface Loan {
   id: string;
@@ -27,7 +29,7 @@ interface Loan {
 export default function RepaymentsPage() {
   const searchParams = useSearchParams();
   const preselectedLoanId = searchParams.get('loan');
-  
+  const queryClient = useQueryClient();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [amount, setAmount] = useState('');
@@ -136,6 +138,13 @@ export default function RepaymentsPage() {
 
       if (error) throw error;
 
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardStats });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentLoans });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loan(selectedLoan.id) });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.payments(selectedLoan.id) });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentAlerts });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reportsStats });
+
       toast.success('Payment recorded successfully!');
       
       // Check if loan is fully paid
@@ -164,7 +173,7 @@ export default function RepaymentsPage() {
         {/* Active Loans List */}
         <Card>
           <h3 className="text-lg font-semibold text-primary mb-4">Active Loans</h3>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="space-y-3">
             {loans.length === 0 ? (
               <p className="text-center text-secondary py-8">No active loans</p>
             ) : (
