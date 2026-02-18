@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency, formatDate, formatPhone } from '@/lib/utils/formatting';
-import { User, Phone, MapPin, CreditCard, Building, Shield, ArrowLeft } from 'lucide-react';
+import { User, Phone, MapPin, CreditCard, Building, Shield, ArrowLeft, Edit, UserCheck, Clock } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface Client {
   id: string;
@@ -23,6 +24,9 @@ interface Client {
   guarantor_phone?: string;
   guarantor_address?: string;
   created_at: string;
+  created_by_name?: string;
+  last_modified_by_name?: string;
+  last_modified_at?: string;
 }
 
 interface Loan {
@@ -35,6 +39,8 @@ interface Loan {
   status: string;
   disbursed_date?: string;
   created_at: string;
+  created_by_name?: string;
+  disbursed_by_name?: string;
 }
 
 interface Payment {
@@ -43,12 +49,14 @@ interface Payment {
   payment_date: string;
   account_type: string;
   created_at: string;
+  recorded_by_name?: string;
 }
 
 export default function ClientDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const clientId = params.id as string;
+  const { isAdmin } = useAuth();
 
   const [client, setClient] = useState<Client | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -113,15 +121,15 @@ export default function ClientDetailsPage() {
     );
   }
 
- const totalLoaned = loans.reduce((sum, loan) => sum + Number(loan.total_due), 0); // Changed from loan_amount to total_due
-const totalRepaid = loans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
-const totalOutstanding = loans
-  .filter(l => l.status === 'disbursed')
-  .reduce((sum, loan) => sum + (Number(loan.total_due) - Number(loan.total_paid || 0)), 0);
-const totalInterest = loans.reduce((sum, loan) => {
-  const interest = Number(loan.total_due) - Number(loan.loan_amount);
-  return sum + interest;
-}, 0);
+  const totalLoaned = loans.reduce((sum, loan) => sum + Number(loan.total_due), 0);
+  const totalRepaid = loans.reduce((sum, loan) => sum + Number(loan.total_paid || 0), 0);
+  const totalOutstanding = loans
+    .filter(l => l.status === 'disbursed')
+    .reduce((sum, loan) => sum + (Number(loan.total_due) - Number(loan.total_paid || 0)), 0);
+  const totalInterest = loans.reduce((sum, loan) => {
+    const interest = Number(loan.total_due) - Number(loan.loan_amount);
+    return sum + interest;
+  }, 0);
 
   return (
     <div>
@@ -129,40 +137,74 @@ const totalInterest = loans.reduce((sum, loan) => {
         title={client.full_name}
         subtitle="Client Details"
         action={
-          <Button variant="secondary" onClick={() => router.push('/clients')}>
-            <ArrowLeft size={16} className="mr-2" />
-            Back to Clients
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button onClick={() => router.push(`/clients/${clientId}/edit`)}>
+                <Edit size={16} className="mr-2" />
+                Edit Client
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => router.push('/clients')}>
+              <ArrowLeft size={16} className="mr-2" />
+              Back to Clients
+            </Button>
+          </div>
         }
       />
 
-     {/* Summary Stats */}
-<div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-  <Card className="bg-blue-50 border-blue-200">
-    <CardContent className="pt-4 pb-4">
-      <div className="text-xs text-blue-600">Total Due (Principal + Interest)</div>
-      <div className="text-xl font-bold text-blue-900">{formatCurrency(totalLoaned)}</div>
-    </CardContent>
-  </Card>
-  <Card className="bg-purple-50 border-purple-200">
-    <CardContent className="pt-4 pb-4">
-      <div className="text-xs text-purple-600">Total Interest</div>
-      <div className="text-xl font-bold text-purple-900">{formatCurrency(totalInterest)}</div>
-    </CardContent>
-  </Card>
-  <Card className="bg-green-50 border-green-200">
-    <CardContent className="pt-4 pb-4">
-      <div className="text-xs text-green-600">Total Repaid</div>
-      <div className="text-xl font-bold text-green-900">{formatCurrency(totalRepaid)}</div>
-    </CardContent>
-  </Card>
-  <Card className="bg-yellow-50 border-yellow-200">
-    <CardContent className="pt-4 pb-4">
-      <div className="text-xs text-yellow-600">Outstanding</div>
-      <div className="text-xl font-bold text-yellow-900">{formatCurrency(totalOutstanding)}</div>
-    </CardContent>
-  </Card>
-</div>
+      {/* User Tracking Info */}
+      {(client.created_by_name || client.last_modified_by_name) && (
+        <Card className="mb-4 bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              {client.created_by_name && (
+                <div className="flex items-center gap-2">
+                  <UserCheck size={16} className="text-blue-600" />
+                  <span className="text-secondary">Registered by:</span>
+                  <span className="font-semibold text-blue-900">{client.created_by_name}</span>
+                  <span className="text-xs text-secondary">on {formatDate(client.created_at)}</span>
+                </div>
+              )}
+              {client.last_modified_by_name && client.last_modified_at && (
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-blue-600" />
+                  <span className="text-secondary">Last modified by:</span>
+                  <span className="font-semibold text-blue-900">{client.last_modified_by_name}</span>
+                  <span className="text-xs text-secondary">on {formatDate(client.last_modified_at)}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-blue-600">Total Due (Principal + Interest)</div>
+            <div className="text-xl font-bold text-blue-900">{formatCurrency(totalLoaned)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-purple-50 border-purple-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-purple-600">Total Interest</div>
+            <div className="text-xl font-bold text-purple-900">{formatCurrency(totalInterest)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-green-600">Total Repaid</div>
+            <div className="text-xl font-bold text-green-900">{formatCurrency(totalRepaid)}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-xs text-yellow-600">Outstanding</div>
+            <div className="text-xl font-bold text-yellow-900">{formatCurrency(totalOutstanding)}</div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Personal Information */}
@@ -296,6 +338,16 @@ const totalInterest = loans.reduce((sum, loan) => {
                             <div className="text-sm text-secondary">
                               {formatDate(loan.created_at)} • {loan.payment_plan}
                             </div>
+                            {loan.created_by_name && (
+                              <div className="text-xs text-secondary mt-1">
+                                Created by: <span className="font-semibold">{loan.created_by_name}</span>
+                              </div>
+                            )}
+                            {loan.disbursed_by_name && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                Disbursed by: <span className="font-semibold">{loan.disbursed_by_name}</span>
+                              </div>
+                            )}
                           </div>
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -359,6 +411,7 @@ const totalInterest = loans.reduce((sum, loan) => {
                         <th className="text-left py-2 px-3 text-sm font-semibold text-primary">Date</th>
                         <th className="text-left py-2 px-3 text-sm font-semibold text-primary">Amount</th>
                         <th className="text-left py-2 px-3 text-sm font-semibold text-primary">Method</th>
+                        <th className="text-left py-2 px-3 text-sm font-semibold text-primary">Recorded By</th>
                         <th className="text-left py-2 px-3 text-sm font-semibold text-primary">Recorded</th>
                       </tr>
                     </thead>
@@ -370,6 +423,9 @@ const totalInterest = loans.reduce((sum, loan) => {
                             {formatCurrency(payment.amount)}
                           </td>
                           <td className="py-2 px-3 text-sm">{payment.account_type}</td>
+                          <td className="py-2 px-3 text-sm font-semibold">
+                            {payment.recorded_by_name || 'N/A'}
+                          </td>
                           <td className="py-2 px-3 text-xs text-secondary">
                             {formatDate(payment.created_at)}
                           </td>

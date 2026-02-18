@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-client';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface Loan {
   id: string;
@@ -30,6 +31,8 @@ export default function RepaymentsPage() {
   const searchParams = useSearchParams();
   const preselectedLoanId = searchParams.get('loan');
   const queryClient = useQueryClient();
+  const { user } = useAuth(); // Added: Get current user
+  
   const [loans, setLoans] = useState<Loan[]>([]);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [amount, setAmount] = useState('');
@@ -122,28 +125,63 @@ export default function RepaymentsPage() {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Not authenticated');
-        return;
-      }
+      // ============================================
+      // USER TRACKING: Get current user's name
+      // ============================================
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('full_name, role')
+        .eq('id', user?.id)
+        .single();
 
-      const { error } = await supabase.from('repayments').insert([{
-        loan_id: selectedLoan.id,
-        amount: paymentAmount,
-        payment_date: paymentDate,
-        account_type: accountType,
-        created_by: user.id,
-      }]);
+      const userName = profileData?.full_name || 'Unknown User';
+
+      // ============================================
+      // INSERT PAYMENT WITH USER TRACKING
+      // ============================================
+      const { data: paymentData, error } = await supabase
+        .from('repayments')
+        .insert([{
+          loan_id: selectedLoan.id,
+          amount: paymentAmount,
+          payment_date: paymentDate,
+          account_type: accountType,
+          recorded_by: user?.id,              // NEW: Track who recorded it
+          recorded_by_name: userName,         // NEW: Store their name
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
 
+      // ============================================
+      // AUDIT TRAIL: Log the payment recording
+      // ============================================
+      await supabase.from('audit_logs').insert([{
+        user_id: user?.id,
+        user_name: userName,
+        user_role: profileData?.role || 'manager',
+        action: 'RECORD_PAYMENT',
+        table_name: 'repayments',
+        record_id: paymentData.id,
+        new_data: {
+          loan_id: selectedLoan.id,
+          amount: paymentAmount,
+          payment_date: paymentDate,
+          account_type: accountType,
+          client_name: selectedLoan.clients?.full_name,
+        },
+      }]);
+
+      // ============================================
+      // INVALIDATE CACHE
+      // ============================================
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardStats });
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentLoans });
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loan(selectedLoan.id) });
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.payments(selectedLoan.id) });
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentAlerts });
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reportsStats });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentLoans });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loan(selectedLoan.id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.payments(selectedLoan.id) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.paymentAlerts });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reportsStats });
 
       toast.success('Payment recorded successfully!');
       
@@ -159,6 +197,7 @@ queryClient.invalidateQueries({ queryKey: QUERY_KEYS.reportsStats });
       setSelectedLoan(null);
       fetchActiveLoans();
     } catch (error: any) {
+      console.error('Error recording payment:', error);
       toast.error(error.message || 'Failed to record payment');
     } finally {
       setLoading(false);

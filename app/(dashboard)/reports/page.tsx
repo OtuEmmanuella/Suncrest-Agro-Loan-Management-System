@@ -17,7 +17,7 @@ interface Stats {
   total_disbursed: number;
   total_repaid: number;
   pending_amount: number;
-  total_interest: number; 
+  total_interest: number;
   daily_loans: number;
   weekly_loans: number;
   monthly_loans: number;
@@ -51,17 +51,17 @@ interface DuePayment {
 export default function ReportsPage() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats>({
-  total_disbursed: 0,
-  total_repaid: 0,
-  pending_amount: 0,
-  total_interest: 0, // ADD THIS
-  daily_loans: 0,
-  weekly_loans: 0,
-  monthly_loans: 0,
-  new_clients_count: 0,
-  pending_disbursement_count: 0,
-  active_repayment_count: 0,
-});
+    total_disbursed: 0,
+    total_repaid: 0,
+    pending_amount: 0,
+    total_interest: 0,
+    daily_loans: 0,
+    weekly_loans: 0,
+    monthly_loans: 0,
+    new_clients_count: 0,
+    pending_disbursement_count: 0,
+    active_repayment_count: 0,
+  });
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [duePayments, setDuePayments] = useState<DuePayment[]>([]);
@@ -75,54 +75,53 @@ export default function ReportsPage() {
     fetchReports();
   }, []);
 
- const fetchReports = async () => {
-  const { data: loans } = await supabase.from('loans').select('*');
-  const { data: clients } = await supabase.from('clients').select('created_at');
+  const fetchReports = async () => {
+    const { data: loans } = await supabase.from('loans').select('*');
+    const { data: clients } = await supabase.from('clients').select('created_at');
 
-  if (!loans) return;
+    if (!loans) return;
 
-  const disbursed = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => sum + Number(l.loan_amount), 0);
+    const disbursed = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => sum + Number(l.loan_amount), 0);
 
-  const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
+    const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
 
-  const pending = loans
-    .filter(l => l.status === 'disbursed')
-    .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
+    const pending = loans
+      .filter(l => l.status === 'disbursed')
+      .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
 
-  // ADD THIS: Calculate total interest
-  const totalInterest = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => {
-      const interest = Number(l.total_due) - Number(l.loan_amount);
-      return sum + interest;
-    }, 0);
+    const totalInterest = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => {
+        const interest = Number(l.total_due) - Number(l.loan_amount);
+        return sum + interest;
+      }, 0);
 
-  const daily = loans.filter(l => l.payment_plan === 'daily').length;
-  const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
-  const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
+    const daily = loans.filter(l => l.payment_plan === 'daily').length;
+    const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
+    const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
 
-  const pendingLoans = loans.filter(l => l.status === 'pending').length;
-  const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
+    const pendingLoans = loans.filter(l => l.status === 'pending').length;
+    const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
 
-  setStats({
-    total_disbursed: disbursed,
-    total_repaid: repaid,
-    pending_amount: pending,
-    total_interest: totalInterest, 
-    daily_loans: daily,
-    weekly_loans: weekly,
-    monthly_loans: monthly,
-    new_clients_count: newClients,
-    pending_disbursement_count: pendingLoans,
-    active_repayment_count: activeRepayments,
-  });
-};
+    setStats({
+      total_disbursed: disbursed,
+      total_repaid: repaid,
+      pending_amount: pending,
+      total_interest: totalInterest,
+      daily_loans: daily,
+      weekly_loans: weekly,
+      monthly_loans: monthly,
+      new_clients_count: newClients,
+      pending_disbursement_count: pendingLoans,
+      active_repayment_count: activeRepayments,
+    });
+  };
 
   const handleSearch = async () => {
     setSearching(true);
@@ -149,7 +148,6 @@ export default function ReportsPage() {
         if (loans) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
           const dueList: DuePayment[] = [];
           
           loans.forEach(loan => {
@@ -159,7 +157,7 @@ export default function ReportsPage() {
             const diffTime = today.getTime() - dueDate.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
-            if (diffDays >= 0) { // Overdue or due today
+            if (diffDays >= 0) {
               const balance = Number(loan.total_due) - Number(loan.total_paid || 0);
               const clientName = (loan.clients as any)?.full_name || 'Unknown';
               
@@ -188,7 +186,7 @@ export default function ReportsPage() {
         
         let paymentQuery = supabase
           .from('repayments')
-          .select('id, amount, payment_date, loans(id, payment_plan, clients(full_name))');
+          .select('id, amount, payment_date, recorded_by_name, loans(id, payment_plan, clients(full_name))');
         
         if (startDate) paymentQuery = paymentQuery.gte('payment_date', startDate);
         if (endDate) paymentQuery = paymentQuery.lte('payment_date', `${endDate}T23:59:59`);
@@ -208,7 +206,7 @@ export default function ReportsPage() {
               description: `Payment from ${clientName}`,
               amount: payment.amount,
               date: payment.payment_date,
-              user_name: 'System',
+              user_name: payment.recorded_by_name || 'Unknown',
               link: loanId ? `/loans/${loanId}` : undefined,
               payment_plan: loanPlan,
             });
@@ -220,7 +218,10 @@ export default function ReportsPage() {
       // Original Filters
       else {
         if (filterType === 'all' || filterType === 'clients') {
-          let query = supabase.from('clients').select('id, full_name, created_at');
+          let query = supabase
+            .from('clients')
+            .select('id, full_name, created_at, created_by_name');
+          
           if (startDate) query = query.gte('created_at', startDate);
           if (endDate) query = query.lte('created_at', `${endDate}T23:59:59`);
 
@@ -231,7 +232,7 @@ export default function ReportsPage() {
               type: 'client',
               description: `New client: ${c.full_name}`,
               date: c.created_at,
-              user_name: 'System',
+              user_name: c.created_by_name || 'Unknown',
               link: `/clients/${c.id}`,
             });
           });
@@ -240,7 +241,7 @@ export default function ReportsPage() {
         if (filterType === 'all' || filterType === 'disbursed') {
           let loanQuery = supabase
             .from('loans')
-            .select('id, loan_amount, total_due, disbursed_date, clients(full_name)')
+            .select('id, loan_amount, total_due, disbursed_date, disbursed_by_name, clients(full_name)')
             .eq('status', 'disbursed')
             .not('disbursed_date', 'is', null);
           
@@ -256,7 +257,7 @@ export default function ReportsPage() {
               description: `Loan disbursed to ${clientName}`,
               amount: l.total_due,
               date: l.disbursed_date!,
-              user_name: 'System',
+              user_name: l.disbursed_by_name || 'Unknown',
               link: `/loans/${l.id}`,
             });
             calculatedTotal += Number(l.total_due);
@@ -266,7 +267,7 @@ export default function ReportsPage() {
         if (filterType === 'all' || filterType === 'pending') {
           let pendingQuery = supabase
             .from('loans')
-            .select('id, loan_amount, total_due, created_at, clients(full_name)')
+            .select('id, loan_amount, total_due, created_at, created_by_name, clients(full_name)')
             .eq('status', 'pending');
           
           if (startDate) pendingQuery = pendingQuery.gte('created_at', startDate);
@@ -281,7 +282,7 @@ export default function ReportsPage() {
               description: `Pending: ${clientName}`,
               amount: l.total_due,
               date: l.created_at,
-              user_name: 'System',
+              user_name: l.created_by_name || 'Unknown',
               link: `/loans/pending`,
             });
             calculatedTotal += Number(l.total_due);
@@ -291,7 +292,7 @@ export default function ReportsPage() {
         if (filterType === 'payments') {
           let paymentQuery = supabase
             .from('repayments')
-            .select('id, amount, payment_date, loans(id, clients(full_name))');
+            .select('id, amount, payment_date, recorded_by_name, loans(id, clients(full_name))');
           
           if (startDate) paymentQuery = paymentQuery.gte('payment_date', startDate);
           if (endDate) paymentQuery = paymentQuery.lte('payment_date', `${endDate}T23:59:59`);
@@ -306,7 +307,7 @@ export default function ReportsPage() {
               description: `Payment from ${clientName}`,
               amount: payment.amount,
               date: payment.payment_date,
-              user_name: 'System',
+              user_name: payment.recorded_by_name || 'Unknown',
               link: loanId ? `/loans/${loanId}` : undefined,
             });
             calculatedTotal += Number(payment.amount);
@@ -355,20 +356,20 @@ export default function ReportsPage() {
       <PaymentAlerts />
 
       {/* Financial Overview */}
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6">
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Financial Overview</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <StatsCard title="Total Disbursed" value={stats.total_disbursed} icon="💰" isCurrency />
-            <StatsCard title="Total Interest" value={stats.total_interest} icon="📈" isCurrency />
-            <StatsCard title="Total Repaid" value={stats.total_repaid} icon="✅" isCurrency />
-            <StatsCard title="Pending Amount" value={stats.pending_amount} icon="⏳" isCurrency />
+          <StatsCard title="Total Disbursed" value={stats.total_disbursed} icon="💰" isCurrency />
+          <StatsCard title="Total Interest" value={stats.total_interest} icon="📈" isCurrency />
+          <StatsCard title="Total Repaid" value={stats.total_repaid} icon="✅" isCurrency />
+          <StatsCard title="Pending Amount" value={stats.pending_amount} icon="⏳" isCurrency />
         </div>
-        </div>
+      </div>
 
       {/* Loan Distribution */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-primary mb-3">Loan Distribution by Plan (Click to View)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Loan Distribution by Plan (Click to View)</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <div onClick={() => handleLoanPlanClick('daily')} className="cursor-pointer hover:opacity-80 transition">
             <StatsCard title="Daily Loans" value={stats.daily_loans} icon="📅" />
           </div>
@@ -382,9 +383,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Activity Stats */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-primary mb-3">Recent Activity</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Recent Activity</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <StatsCard title="New Clients (30 days)" value={stats.new_clients_count} icon="👤" />
           <StatsCard title="Pending Disbursement" value={stats.pending_disbursement_count} icon="⏸️" />
           <StatsCard title="Active Repayments" value={stats.active_repayment_count} icon="🔄" />
@@ -394,9 +395,9 @@ export default function ReportsPage() {
       {/* Transaction Search */}
       <Card>
         <CardContent className="pt-4">
-          <h3 className="text-base font-semibold text-primary mb-3">Search & Filter</h3>
+          <h3 className="text-sm sm:text-base font-semibold text-primary mb-3">Search & Filter</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <Input
               label="Start Date"
               type="date"
@@ -438,7 +439,7 @@ export default function ReportsPage() {
           {/* Due Payments Results */}
           {filterType.startsWith('due_') && duePayments.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-sm font-semibold mb-2">
+              <h4 className="text-xs sm:text-sm font-semibold mb-2">
                 Due Payments ({duePayments.length}) - {filterType.replace('due_', '').toUpperCase()} PLAN
               </h4>
               <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -454,9 +455,9 @@ export default function ReportsPage() {
                         : 'bg-yellow-50 border-yellow-300'
                     }`}
                   >
-                    <div className="flex justify-between items-center text-sm">
-                      <div className="flex-1">
-                        <div className="font-semibold">{payment.client_name}</div>
+                    <div className="flex justify-between items-center text-xs sm:text-sm">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{payment.client_name}</div>
                         <div className="text-xs text-secondary">
                           {payment.days_overdue === 0 ? 'Due Today' : `${payment.days_overdue} days overdue`} • 
                           Due: {formatDate(payment.next_payment_date)} • 
@@ -467,7 +468,7 @@ export default function ReportsPage() {
                           Balance: <strong>{formatCurrency(payment.balance)}</strong>
                         </div>
                       </div>
-                      <div className="font-semibold text-red-600">
+                      <div className="font-semibold text-red-600 ml-2 flex-shrink-0">
                         {formatCurrency(payment.installment_amount)}
                       </div>
                     </div>
@@ -475,11 +476,10 @@ export default function ReportsPage() {
                 ))}
               </div>
               
-              {/* Due Payments Total */}
-              <div className="mt-4 p-4 bg-red-100 border-2 border-red-400 rounded-lg">
+              <div className="mt-4 p-3 sm:p-4 bg-red-100 border-2 border-red-400 rounded-lg">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-red-900">Total Due Amount:</span>
-                  <span className="text-xl font-bold text-red-900">
+                  <span className="text-sm sm:text-base font-semibold text-red-900">Total Due Amount:</span>
+                  <span className="text-lg sm:text-xl font-bold text-red-900">
                     {formatCurrency(totalAmount)}
                   </span>
                 </div>
@@ -490,7 +490,7 @@ export default function ReportsPage() {
           {/* Transaction Results */}
           {!filterType.startsWith('due_') && transactions.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-sm font-semibold mb-2">Results ({transactions.length})</h4>
+              <h4 className="text-xs sm:text-sm font-semibold mb-2">Results ({transactions.length})</h4>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {transactions.map(t => (
                   <div
@@ -498,12 +498,12 @@ export default function ReportsPage() {
                     onClick={() => t.link && router.push(t.link)}
                     className={`p-3 rounded-lg border-2 ${getTransactionColor(t.type)} ${
                       t.link ? 'cursor-pointer hover:shadow-md' : ''
-                    } transition-all flex justify-between items-center text-sm`}
+                    } transition-all flex justify-between items-center text-xs sm:text-sm`}
                   >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="text-xl">{getTransactionIcon(t.type)}</div>
-                      <div>
-                        <div className="font-semibold">{t.description}</div>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <div className="text-lg sm:text-xl flex-shrink-0">{getTransactionIcon(t.type)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate">{t.description}</div>
                         <div className="text-xs text-secondary">
                           {formatDate(t.date)} • by {t.user_name}
                           {t.payment_plan && ` • ${t.payment_plan.toUpperCase()} Plan`}
@@ -511,7 +511,7 @@ export default function ReportsPage() {
                       </div>
                     </div>
                     {t.amount && (
-                      <div className="font-semibold text-green-600">
+                      <div className="font-semibold text-green-600 ml-2 flex-shrink-0">
                         {formatCurrency(t.amount)}
                       </div>
                     )}
@@ -519,12 +519,11 @@ export default function ReportsPage() {
                 ))}
               </div>
               
-              {/* Transaction Total */}
               {totalAmount > 0 && (
-                <div className="mt-4 p-4 bg-green-100 border-2 border-green-400 rounded-lg">
+                <div className="mt-4 p-3 sm:p-4 bg-green-100 border-2 border-green-400 rounded-lg">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-green-900">Total Amount:</span>
-                    <span className="text-xl font-bold text-green-900">
+                    <span className="text-sm sm:text-base font-semibold text-green-900">Total Amount:</span>
+                    <span className="text-lg sm:text-xl font-bold text-green-900">
                       {formatCurrency(totalAmount)}
                     </span>
                   </div>
@@ -534,7 +533,7 @@ export default function ReportsPage() {
           )}
 
           {(transactions.length === 0 && duePayments.length === 0) && !searching && (startDate || filterType !== 'all') && (
-            <div className="text-center py-8 text-secondary">
+            <div className="text-center py-8 text-secondary text-sm">
               No results found for the selected criteria
             </div>
           )}

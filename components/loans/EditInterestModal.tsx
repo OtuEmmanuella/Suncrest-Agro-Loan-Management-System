@@ -26,15 +26,17 @@ interface EditInterestModalProps {
 }
 
 export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModalProps) {
-  const [newInterestRate, setNewInterestRate] = useState(loan.interest_rate.toString());
+  // Calculate current interest amount from percentage
+  const currentInterestAmount = loan.loan_amount * (loan.interest_rate / 100);
+  const [newInterestAmount, setNewInterestAmount] = useState(currentInterestAmount.toString());
   const [loading, setLoading] = useState(false);
 
   // Calculate new totals
   const calculateNewTotals = () => {
-    const rate = Number(newInterestRate);
+    const interestAmount = Number(newInterestAmount);
     const principal = loan.loan_amount;
-    const interest = (principal * rate) / 100;
-    const newTotal = principal + interest;
+    const newTotal = principal + interestAmount;
+    const newRate = principal > 0 ? (interestAmount / principal) * 100 : 0;
 
     // Calculate number of payments
     let payments = 0;
@@ -54,7 +56,8 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
 
     return {
       newTotal,
-      interest,
+      interest: interestAmount,
+      interestRate: newRate,
       installment,
       payments,
     };
@@ -71,7 +74,6 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
         return;
       }
 
-      // Get user profile for audit log
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('full_name, role')
@@ -79,21 +81,20 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
         .single();
 
       if (profile?.role !== 'admin') {
-        toast.error('Only admins can edit interest rates');
+        toast.error('Only admins can edit interest');
         return;
       }
 
-      // Log the old data
       const oldData = {
         interest_rate: loan.interest_rate,
+        interest_amount: currentInterestAmount,
         total_due: loan.total_due,
       };
 
-      // Update loan
       const { error: updateError } = await supabase
         .from('loans')
         .update({
-          interest_rate: Number(newInterestRate),
+          interest_rate: newTotals.interestRate,
           total_due: newTotals.newTotal,
           installment_amount: newTotals.installment,
           last_modified_by: user.id,
@@ -102,7 +103,6 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
 
       if (updateError) throw updateError;
 
-      // Create audit log
       await supabase.from('audit_logs').insert([{
         user_id: user.id,
         user_name: profile.full_name,
@@ -112,17 +112,18 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
         record_id: loan.id,
         old_data: oldData,
         new_data: {
-          interest_rate: Number(newInterestRate),
+          interest_rate: newTotals.interestRate,
+          interest_amount: newTotals.interest,
           total_due: newTotals.newTotal,
         },
       }]);
 
-      toast.success('Interest rate updated successfully!');
+      toast.success('Interest updated successfully!');
       onUpdate();
       onClose();
     } catch (error: any) {
       console.error('Error updating interest:', error);
-      toast.error(error.message || 'Failed to update interest rate');
+      toast.error(error.message || 'Failed to update interest');
     } finally {
       setLoading(false);
     }
@@ -131,69 +132,78 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-6">
+        <div className="p-4 sm:p-6">
+          <div className="flex justify-between items-start mb-4 sm:mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-primary">Edit Interest Rate</h2>
-              <p className="text-sm text-secondary mt-1">Client: {loan.client_name}</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-primary">Edit Interest Amount</h2>
+              <p className="text-xs sm:text-sm text-secondary mt-1">Client: {loan.client_name}</p>
             </div>
             <button onClick={onClose} className="text-secondary hover:text-primary">
               <X size={24} />
             </button>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Current Values */}
-            <div className="bg-cream p-4 rounded-lg">
-              <h3 className="font-semibold mb-3">Current Values</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-cream p-3 sm:p-4 rounded-lg">
+              <h3 className="font-semibold mb-3 text-sm sm:text-base">Current Values</h3>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                 <div>
                   <span className="text-secondary">Principal:</span>
                   <div className="font-semibold">{formatCurrency(loan.loan_amount)}</div>
                 </div>
                 <div>
+                  <span className="text-secondary">Interest Amount:</span>
+                  <div className="font-semibold">{formatCurrency(currentInterestAmount)}</div>
+                </div>
+                <div>
                   <span className="text-secondary">Interest Rate:</span>
-                  <div className="font-semibold">{loan.interest_rate}%</div>
+                  <div className="font-semibold">{loan.interest_rate.toFixed(2)}%</div>
                 </div>
                 <div>
                   <span className="text-secondary">Total Due:</span>
                   <div className="font-semibold">{formatCurrency(loan.total_due)}</div>
                 </div>
-                <div>
+                <div className="col-span-2">
                   <span className="text-secondary">Already Paid:</span>
                   <div className="font-semibold text-green-600">{formatCurrency(loan.total_paid)}</div>
                 </div>
               </div>
             </div>
 
-            {/* New Interest Rate Input */}
+            {/* New Interest Amount Input */}
             <Input
-              label="New Interest Rate (%)"
+              label="New Interest Amount (₦)"
               type="number"
-              step="0.1"
+              step="0.01"
               min="0"
-              value={newInterestRate}
-              onChange={(e) => setNewInterestRate(e.target.value)}
-              placeholder="Enter new rate"
+              value={newInterestAmount}
+              onChange={(e) => setNewInterestAmount(e.target.value)}
+              placeholder="Enter new interest amount"
+              helperText={`Equivalent to ${newTotals.interestRate.toFixed(2)}%`}
             />
 
             {/* New Calculated Values */}
-            <div className="bg-lavender p-4 rounded-lg">
-              <h3 className="font-semibold mb-3">New Calculated Values</h3>
-              <div className="space-y-3">
+            <div className="bg-lavender p-3 sm:p-4 rounded-lg">
+              <h3 className="font-semibold mb-3 text-sm sm:text-base">New Calculated Values</h3>
+              <div className="space-y-2 sm:space-y-3 text-sm sm:text-base">
                 <div className="flex justify-between">
-                  <span>New Interest ({newInterestRate}%):</span>
+                  <span>New Interest Amount:</span>
                   <strong>{formatCurrency(newTotals.interest)}</strong>
                 </div>
-                <div className="flex justify-between text-lg font-bold text-primary pt-2 border-t-2 border-primary">
+                <div className="flex justify-between">
+                  <span>New Interest Rate:</span>
+                  <strong>{newTotals.interestRate.toFixed(2)}%</strong>
+                </div>
+                <div className="flex justify-between text-base sm:text-lg font-bold text-primary pt-2 border-t-2 border-primary">
                   <span>New Total Due:</span>
                   <strong>{formatCurrency(newTotals.newTotal)}</strong>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-primary/30">
+                <div className="flex justify-between pt-2 border-t border-primary/30 text-sm">
                   <span>Installment ({loan.payment_plan}):</span>
                   <strong>{formatCurrency(newTotals.installment)}</strong>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm">
                   <span>Number of Payments:</span>
                   <strong>{newTotals.payments}</strong>
                 </div>
@@ -202,8 +212,8 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
 
             {/* Impact Warning */}
             {loan.total_paid > 0 && (
-              <div className="bg-yellow-50 border-2 border-yellow-400 p-4 rounded-lg">
-                <p className="text-sm text-yellow-800">
+              <div className="bg-yellow-50 border-2 border-yellow-400 p-3 sm:p-4 rounded-lg">
+                <p className="text-xs sm:text-sm text-yellow-800">
                   ⚠️ <strong>Warning:</strong> This loan has already received payments. 
                   The new balance will be: <strong>{formatCurrency(newTotals.newTotal - loan.total_paid)}</strong>
                 </p>
@@ -211,7 +221,7 @@ export function EditInterestModal({ loan, onClose, onUpdate }: EditInterestModal
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <Button variant="secondary" onClick={onClose} className="flex-1">
                 Cancel
               </Button>

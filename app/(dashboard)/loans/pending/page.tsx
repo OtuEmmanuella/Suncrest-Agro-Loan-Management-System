@@ -37,15 +37,55 @@ export default function PendingLoansPage() {
 
   const handleDisburse = async (loanId: string) => {
     try {
+      // ============================================
+      // GET CURRENT USER INFO
+      // ============================================
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
+
+      // Get user's name from profile
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('full_name, role')
+        .eq('id', user.id)
+        .single();
+
+      const userName = profileData?.full_name || 'Unknown User';
+
+      // ============================================
+      // UPDATE LOAN WITH USER TRACKING
+      // ============================================
       const { error } = await supabase
         .from('loans')
         .update({ 
           status: 'disbursed',
-          disbursed_date: new Date().toISOString()
+          disbursed_date: new Date().toISOString(),
+          disbursed_by: user.id,
+          disbursed_by_name: userName,
         })
         .eq('id', loanId);
 
       if (error) throw error;
+
+      // ============================================
+      // AUDIT TRAIL
+      // ============================================
+      await supabase.from('audit_logs').insert([{
+        user_id: user.id,
+        user_name: userName,
+        user_role: profileData?.role || 'manager',
+        action: 'DISBURSE_LOAN',
+        table_name: 'loans',
+        record_id: loanId,
+        new_data: {
+          status: 'disbursed',
+          disbursed_date: new Date().toISOString(),
+          disbursed_by_name: userName,
+        },
+      }]);
 
       toast.success('Loan disbursed successfully!');
       fetchPendingLoans();

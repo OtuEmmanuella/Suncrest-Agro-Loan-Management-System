@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
-import { ArrowLeft, TrendingUp, DollarSign, Calendar, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, TrendingUp, DollarSign, Calendar, CheckCircle, Clock, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { EditInterestModal } from '@/components/loans/EditInterestModal'
+import { EditInterestModal } from '@/components/loans/EditInterestModal';
 import { Edit } from 'lucide-react';
+
 interface Loan {
   id: string;
   loan_amount: number;
@@ -26,6 +27,8 @@ interface Loan {
   repayment_start_date?: string;
   next_payment_date?: string;
   created_at: string;
+  created_by_name?: string;        // NEW: Who created the loan
+  disbursed_by_name?: string;      // NEW: Who disbursed the loan
   clients?: {
     full_name: string;
     phone_number: string;
@@ -38,6 +41,7 @@ interface Payment {
   payment_date: string;
   account_type: string;
   created_at: string;
+  recorded_by_name?: string;       // NEW: Who recorded the payment
 }
 
 export default function LoanDetailsPage() {
@@ -50,7 +54,7 @@ export default function LoanDetailsPage() {
   const [loading, setLoading] = useState(true);
 
   const { isAdmin } = useAuth();
-const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (loanId) {
@@ -115,7 +119,6 @@ const [showEditModal, setShowEditModal] = useState(false);
   
   const originalPaymentCount = getOriginalPaymentCount();
   const paymentsMade = payments.length;
-  const expectedPaymentsMade = paymentsMade; // Based on time elapsed
   
   // Calculate if ahead or behind schedule
   const paymentDifference = originalPaymentCount - (paymentsMade + paymentsRemaining);
@@ -146,10 +149,7 @@ const [showEditModal, setShowEditModal] = useState(false);
   const isPayingAboveInstallment = averagePayment > loan.installment_amount;
 
   // Interest calculation
-   const interestAmount = Number(loan.total_due) - Number(loan.loan_amount);
-
-// Then in the Loan Information card, update the grid to include:
-
+  const interestAmount = Number(loan.total_due) - Number(loan.loan_amount);
 
   return (
     <div>
@@ -163,6 +163,34 @@ const [showEditModal, setShowEditModal] = useState(false);
           </Button>
         }
       />
+
+      {/* ============================================ */}
+      {/* NEW: USER TRACKING INFO */}
+      {/* ============================================ */}
+      {(loan.created_by_name || loan.disbursed_by_name) && (
+        <Card className="mb-4 bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              {loan.created_by_name && (
+                <div className="flex items-center gap-2">
+                  <UserCheck size={16} className="text-blue-600" />
+                  <span className="text-secondary">Created by:</span>
+                  <span className="font-semibold text-blue-900">{loan.created_by_name}</span>
+                  <span className="text-xs text-secondary">on {formatDate(loan.created_at)}</span>
+                </div>
+              )}
+              {loan.disbursed_by_name && loan.disbursed_date && (
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-blue-600" />
+                  <span className="text-secondary">Disbursed by:</span>
+                  <span className="font-semibold text-blue-900">{loan.disbursed_by_name}</span>
+                  <span className="text-xs text-secondary">on {formatDate(loan.disbursed_date)}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -321,7 +349,7 @@ const [showEditModal, setShowEditModal] = useState(false);
               <div>
                 <div className="text-sm text-secondary">Interest Amount</div>
                 <div className="font-semibold text-purple-600">{formatCurrency(interestAmount)}</div>
-                </div>
+              </div>
 
               <div>
                 <div className="text-sm text-secondary">Payment Plan</div>
@@ -351,18 +379,6 @@ const [showEditModal, setShowEditModal] = useState(false);
                 >
                   {loan.status}
                 </span>
-                {isAdmin && loan.status !== 'completed' && (
-                    <div className="pt-4 border-t border-sage">
-                        <Button
-                        variant="secondary"
-                        onClick={() => setShowEditModal(true)}
-                        className="w-full"
-                        >
-                        <Edit size={16} className="mr-2" />
-                        Edit Interest Rate (Admin)
-                        </Button>
-                    </div>
-                    )}
               </div>
 
               <div>
@@ -377,6 +393,19 @@ const [showEditModal, setShowEditModal] = useState(false);
                 </div>
               </div>
             </div>
+
+            {isAdmin && loan.status !== 'completed' && (
+              <div className="pt-4 border-t border-sage">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowEditModal(true)}
+                  className="w-full"
+                >
+                  <Edit size={16} className="mr-2" />
+                  Edit Interest Rate (Admin)
+                </Button>
+              </div>
+            )}
 
             <div className="pt-4 border-t border-sage space-y-3">
               <div className="grid grid-cols-2 gap-4">
@@ -410,7 +439,7 @@ const [showEditModal, setShowEditModal] = useState(false);
           </CardContent>
           {showEditModal && (
             <EditInterestModal
-                loan={{
+              loan={{
                 id: loan.id,
                 loan_amount: loan.loan_amount,
                 interest_rate: loan.interest_rate,
@@ -419,16 +448,18 @@ const [showEditModal, setShowEditModal] = useState(false);
                 payment_plan: loan.payment_plan,
                 duration_months: loan.duration_months,
                 client_name: loan.clients?.full_name || '',
-                }}
-                onClose={() => setShowEditModal(false)}
-                onUpdate={() => {
+              }}
+              onClose={() => setShowEditModal(false)}
+              onUpdate={() => {
                 fetchLoanDetails();
-                }}
+              }}
             />
-            )}
+          )}
         </Card>
 
-        {/* Payment History */}
+        {/* ============================================ */}
+        {/* Payment History - NOW SHOWS WHO RECORDED IT */}
+        {/* ============================================ */}
         <Card>
           <CardHeader>
             <CardTitle>Payment History ({payments.length})</CardTitle>
@@ -462,6 +493,12 @@ const [showEditModal, setShowEditModal] = useState(false);
                               <span className="text-green-600 ml-2">• Overpaid</span>
                             )}
                           </div>
+                          {/* NEW: Show who recorded the payment */}
+                          {payment.recorded_by_name && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              Recorded by: <span className="font-semibold">{payment.recorded_by_name}</span>
+                            </div>
+                          )}
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-semibold">
