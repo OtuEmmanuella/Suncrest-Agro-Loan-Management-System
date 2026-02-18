@@ -19,12 +19,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin } = useAuth();
 
-  // Define navigation inside component so it can access isAdmin
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Clients', href: '/clients', icon: Users },
@@ -47,16 +50,20 @@ export function Sidebar() {
     }
   };
 
+  const handleNavClick = () => {
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="w-64 bg-primary min-h-screen p-6 text-cream">
-      <div className="mb-8">
-        <div className="flex items-center gap-2 text-2xl font-bold">
+    <aside className="w-64 bg-primary min-h-screen p-4 sm:p-6 text-cream flex flex-col">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex items-center gap-2 text-lg sm:text-2xl font-bold">
           <span>💰</span>
-          <span>Suncrest Agro</span>
+          <span className="truncate">Suncrest Agro</span>
         </div>
       </div>
 
-      <nav className="space-y-2">
+      <nav className="space-y-1 sm:space-y-2 flex-1">
         {navigation.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/' && pathname.startsWith(item.href));
@@ -66,13 +73,14 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={handleNavClick}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg transition-all',
+                'flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-all text-sm sm:text-base',
                 'hover:bg-cream/10',
                 isActive && 'bg-lavender text-primary font-semibold'
               )}
             >
-              <Icon size={20} />
+              <Icon size={20} className="flex-shrink-0" />
               <span>{item.name}</span>
             </Link>
           );
@@ -81,9 +89,9 @@ export function Sidebar() {
 
       <button
         onClick={handleLogout}
-        className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-red-500/20 text-red-300 mt-8 w-full"
+        className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-all hover:bg-red-500/20 text-red-300 mt-4 w-full text-sm sm:text-base"
       >
-        <LogOut size={20} />
+        <LogOut size={20} className="flex-shrink-0" />
         <span>Logout</span>
       </button>
     </aside>

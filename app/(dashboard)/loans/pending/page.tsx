@@ -48,7 +48,7 @@ export default function PendingLoansPage() {
       if (error) throw error;
 
       toast.success('Loan disbursed successfully!');
-      fetchPendingLoans(); // Refresh list
+      fetchPendingLoans();
     } catch (error: any) {
       toast.error(error.message || 'Failed to disburse loan');
     }
@@ -59,50 +59,63 @@ export default function PendingLoansPage() {
   }
 
   return (
-    <div>
+    <div className="max-w-7xl mx-auto">
       <Header title="Pending Disbursements" />
 
       <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-sage">
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Client</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Loan Amount</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Total Due</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Payment Plan</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Created</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-primary">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loans.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-secondary">
-                    No pending loans
-                  </td>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-sage">
+                  <th className="text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Client</th>
+                  <th className="text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Amount</th>
+                  <th className="hidden md:table-cell text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Total Due</th>
+                  <th className="hidden sm:table-cell text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Plan</th>
+                  <th className="hidden lg:table-cell text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Created</th>
+                  <th className="text-left py-2 px-2 sm:px-4 text-xs font-semibold text-primary">Action</th>
                 </tr>
-              ) : (
-                loans.map((loan) => (
-                  <tr key={loan.id} className="border-b border-sage hover:bg-cream transition-colors">
-                    <td className="py-3 px-4 font-semibold">{loan.clients?.full_name || 'N/A'}</td>
-                    <td className="py-3 px-4">{formatCurrency(loan.loan_amount)}</td>
-                    <td className="py-3 px-4">{formatCurrency(loan.total_due)}</td>
-                    <td className="py-3 px-4 capitalize">{loan.payment_plan}</td>
-                    <td className="py-3 px-4 text-sm">{formatDate(loan.created_at)}</td>
-                    <td className="py-3 px-4">
-                      <Button
-                        size="sm"
-                        onClick={() => handleDisburse(loan.id)}
-                      >
-                        Disburse
-                      </Button>
+              </thead>
+              <tbody>
+                {loans.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-secondary text-sm">
+                      No pending loans
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  loans.map((loan) => (
+                    <tr key={loan.id} className="border-b border-sage hover:bg-cream transition-colors">
+                      <td className="py-2 px-2 sm:px-4 text-xs sm:text-sm font-semibold truncate max-w-[100px] sm:max-w-none">
+                        {loan.clients?.full_name || 'N/A'}
+                      </td>
+                      <td className="py-2 px-2 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
+                        {formatCurrency(loan.loan_amount)}
+                      </td>
+                      <td className="hidden md:table-cell py-2 px-2 sm:px-4 text-xs sm:text-sm whitespace-nowrap">
+                        {formatCurrency(loan.total_due)}
+                      </td>
+                      <td className="hidden sm:table-cell py-2 px-2 sm:px-4 text-xs sm:text-sm capitalize">
+                        {loan.payment_plan}
+                      </td>
+                      <td className="hidden lg:table-cell py-2 px-2 sm:px-4 text-xs">
+                        {formatDate(loan.created_at)}
+                      </td>
+                      <td className="py-2 px-2 sm:px-4">
+                        <Button
+                          size="sm"
+                          onClick={() => handleDisburse(loan.id)}
+                          className="text-xs"
+                        >
+                          Disburse
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </Card>
     </div>

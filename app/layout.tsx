@@ -6,9 +6,15 @@ import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Suncrest Agro Loan Management System',
   description: 'Manage loans, clients, and repayments efficiently',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false, // Prevents pinch zoom
+  },
 };
 
 export default function RootLayout({

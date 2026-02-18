@@ -30,10 +30,9 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        // Session is automatically stored in localStorage by Supabase
         toast.success('Login successful!');
         router.push('/');
-        router.refresh(); // Force refresh to update middleware
+        router.refresh();
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -44,18 +43,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
-        <div className="bg-cream-light p-8 rounded-xl border-2 border-sage shadow-lg">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-lavender rounded-full mx-auto mb-4 flex items-center justify-center text-4xl">
+        <div className="bg-cream-light p-6 sm:p-8 rounded-xl border-2 border-sage shadow-lg">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-lavender rounded-full mx-auto mb-3 sm:mb-4 flex items-center justify-center text-3xl sm:text-4xl">
               💰
             </div>
-            <h1 className="text-2xl font-bold text-primary mb-2">Suncrest Agro Loan</h1>
-            <p className="text-secondary">Sign in to your account</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-primary mb-2">Suncrest Agro Loan</h1>
+            <p className="text-sm sm:text-base text-secondary">Sign in to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <Input
               label="Email Address"
               type="email"
@@ -83,7 +82,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-secondary opacity-70">
+          <div className="mt-4 sm:mt-6 text-center text-xs text-secondary opacity-70">
             © 2026 Suncrest Agro Loan Management System
           </div>
         </div>

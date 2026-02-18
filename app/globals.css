@@ -1,46 +1,124 @@
+/* app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   html {
-    @apply text-secondary;
+    @apply text-secondary antialiased;
     font-size: 15px;
   }
 
   body {
-    @apply bg-cream text-secondary;
+    @apply bg-cream-light overflow-x-hidden;
   }
+  
   h1 {
-    @apply text-2xl font-bold;
+    @apply text-xl sm:text-2xl font-bold;
   }
   
   h2 {
-    @apply text-lg font-semibold;
+    @apply text-base sm:text-lg font-semibold;
   }
   
   h3 {
-    @apply text-base font-semibold;
-  }
-}
-
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    @apply text-sm sm:text-base font-semibold;
   }
   
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  /* Better touch targets for mobile */
+  button, a, [role="button"] {
+    @apply touch-manipulation;
+    min-height: 44px; /* iOS recommended touch target */
+  }
+  
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 }
 
 @layer components {
   .compact-table th {
-    @apply py-2 px-3 text-xs;
+    @apply py-2 px-2 sm:px-3 text-xs;
   }
   
   .compact-table td {
-    @apply py-2 px-3 text-sm;
+    @apply py-2 px-2 sm:px-3 text-xs sm:text-sm;
   }
+  
+  /* Mobile-friendly scrollable tables */
+  .table-container {
+    @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+  }
+  
+  /* Better mobile cards */
+  .mobile-card {
+    @apply p-3 sm:p-4 rounded-lg border-2 border-sage bg-white shadow-sm;
+  }
+  
+  /* Mobile-friendly form inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="date"],
+  select,
+  textarea {
+    @apply text-base; /* Prevents zoom on iOS */
+    min-height: 44px;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* Safe area padding for notched devices */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Prevent horizontal scroll on mobile */
+  .prevent-scroll {
+    overflow-x: hidden;
+    width: 100%;
+  }
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 640px) {
+  /* Prevent double-tap zoom */
+  * {
+    touch-action: manipulation;
+  }
+  
+  /* Better table scrolling on mobile */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  thead, tbody, tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  /* Add dark mode styles if needed */
 }
