@@ -55,7 +55,7 @@ function getChangedFields(oldData: any, newData: any) {
   if (!oldData || !newData) return [];
   const changes: { field: string; oldValue: any; newValue: any }[] = [];
   const skip = ['last_modified_by', 'last_modified_by_name', 'last_modified_at', 'changes', 'client_name'];
-  const allKeys = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
+  const allKeys = Array.from(new Set([...Object.keys(oldData), ...Object.keys(newData)]));
   for (const key of allKeys) {
     if (skip.includes(key)) continue;
     if (String(oldData[key]) !== String(newData[key])) {
