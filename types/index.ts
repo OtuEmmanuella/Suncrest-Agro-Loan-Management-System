@@ -14,6 +14,7 @@ export interface Client {
 
 export type PaymentPlan = 'daily' | 'weekly' | 'monthly';
 export type LoanStatus = 'pending' | 'disbursed' | 'completed';
+export type DurationUnit = 'days' | 'weeks' | 'months'; // NEW
 
 export interface Loan {
   id: string;
@@ -25,12 +26,16 @@ export interface Loan {
   total_due: number;
   total_amount?: number;     // for compatibility
   payment_plan: PaymentPlan;
-  duration_months: number;
+  duration_months: number;   // kept for backward compatibility
+  duration_value?: number;   // NEW: numeric value (e.g., 3, 7, 14)
+  duration_unit?: DurationUnit; // NEW: unit (days, weeks, months)
   status: LoanStatus;
   disbursed_date?: string;
   total_paid: number;
   created_at: string;
   created_by: string;
+  created_by_name?: string;
+  disbursed_by_name?: string;
 }
 
 export interface DashboardStats {

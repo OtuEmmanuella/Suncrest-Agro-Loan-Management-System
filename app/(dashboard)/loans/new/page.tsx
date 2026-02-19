@@ -6,21 +6,27 @@ import { Header } from '@/components/dashboard/Header';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils/formatting';
+import { calculatePaymentCount, convertToMonths } from '@/lib/utils/calculations';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-client';
+import { useAuth } from '@/lib/hooks/useAuth';
+
+type DurationUnit = 'days' | 'weeks' | 'months';
+type PaymentPlan = 'daily' | 'weekly' | 'monthly';
 
 interface LoanFormData {
   client_id: string;
   loan_amount: number;
-  interest_amount: number; // CHANGED from interest_rate
-  payment_plan: 'daily' | 'weekly' | 'monthly';
-  duration_months: number;
+  interest_amount: number;
+  payment_plan: PaymentPlan;
+  duration_value: number;
+  duration_unit: DurationUnit;
   repayment_start_date: string;
   status: 'pending' | 'disbursed';
 }
@@ -34,26 +40,30 @@ interface Client {
 export default function NewLoanPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
   const [clients, setClients] = useState<Client[]>([]);
   const [totalDue, setTotalDue] = useState(0);
   const [installmentAmount, setInstallmentAmount] = useState(0);
   const [numberOfPayments, setNumberOfPayments] = useState(0);
-  const [interestRate, setInterestRate] = useState(0); // For display purposes
+  const [interestRate, setInterestRate] = useState(0);
   
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<LoanFormData>({
     defaultValues: {
       status: 'pending',
       payment_plan: 'weekly',
+      duration_unit: 'months',
       interest_amount: 0,
-      duration_months: 3,
+      duration_value: 3,
       repayment_start_date: new Date().toISOString().split('T')[0],
     }
   });
 
   const loanAmount = watch('loan_amount');
-  const interestAmount = watch('interest_amount'); // CHANGED
+  const interestAmount = watch('interest_amount');
   const paymentPlan = watch('payment_plan');
-  const durationMonths = watch('duration_months');
+  const durationValue = watch('duration_value');
+  const durationUnit = watch('duration_unit');
 
   useEffect(() => {
     fetchClients();
@@ -61,7 +71,7 @@ export default function NewLoanPage() {
 
   // Calculate loan details
   useEffect(() => {
-    if (loanAmount && interestAmount !== undefined && paymentPlan && durationMonths) {
+    if (loanAmount && interestAmount !== undefined && paymentPlan && durationValue && durationUnit) {
       const principal = Number(loanAmount);
       const interest = Number(interestAmount);
       const total = principal + interest;
@@ -70,19 +80,12 @@ export default function NewLoanPage() {
       const rate = principal > 0 ? (interest / principal) * 100 : 0;
       setInterestRate(rate);
       
-      // Calculate number of payments based on plan and duration
-      let payments = 0;
-      switch (paymentPlan) {
-        case 'daily':
-          payments = durationMonths * 30;
-          break;
-        case 'weekly':
-          payments = Math.ceil(durationMonths * 4.33);
-          break;
-        case 'monthly':
-          payments = durationMonths;
-          break;
-      }
+      // Calculate number of payments using the new function
+      const payments = calculatePaymentCount(
+        Number(durationValue),
+        durationUnit,
+        paymentPlan
+      );
       
       const perPayment = total / payments;
       
@@ -90,7 +93,7 @@ export default function NewLoanPage() {
       setNumberOfPayments(payments);
       setInstallmentAmount(perPayment);
     }
-  }, [loanAmount, interestAmount, paymentPlan, durationMonths]);
+  }, [loanAmount, interestAmount, paymentPlan, durationValue, durationUnit]);
 
   const fetchClients = async () => {
     const { data } = await supabase
@@ -101,66 +104,71 @@ export default function NewLoanPage() {
   };
 
   const onSubmit = async (data: LoanFormData) => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error('Not authenticated');
-      return;
-    }
+    try {
+      if (!user) {
+        toast.error('Not authenticated');
+        return;
+      }
 
-    // ============================================
-    // GET USER INFO FOR TRACKING
-    // ============================================
-    const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('full_name, role')
-      .eq('id', user.id)
-      .single();
+      // Get user info for tracking
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('full_name, role')
+        .eq('id', user.id)
+        .single();
 
-    const userName = profileData?.full_name || 'Unknown User';
+      const userName = profileData?.full_name || 'Unknown User';
 
-
-      // Calculate interest rate percentage for storage
+      // Calculate values
       const principal = Number(data.loan_amount);
       const interest = Number(data.interest_amount);
       const rate = principal > 0 ? (interest / principal) * 100 : 0;
+      
+      // Convert duration to months for backward compatibility
+      const durationMonths = convertToMonths(
+        Number(data.duration_value),
+        data.duration_unit
+      );
 
-     const { data: loanData, error } = await supabase.from('loans').insert([{
-      client_id: data.client_id,
-      loan_amount: principal,
-      interest_rate: rate,
-      total_due: totalDue,
-      payment_plan: data.payment_plan,
-      duration_months: data.duration_months,
-      installment_amount: installmentAmount,
-      repayment_start_date: data.repayment_start_date,
-      next_payment_date: data.status === 'disbursed' ? data.repayment_start_date : null,
-      status: data.status,
-      disbursed_date: data.status === 'disbursed' ? new Date().toISOString() : null,
-      created_by: user.id,
-      created_by_name: userName,  // NEW
-      disbursed_by: data.status === 'disbursed' ? user.id : null,
-      disbursed_by_name: data.status === 'disbursed' ? userName : null,  // NEW
-    }]).select().single();
+      const { data: loanData, error } = await supabase.from('loans').insert([{
+        client_id: data.client_id,
+        loan_amount: principal,
+        interest_rate: rate,
+        total_due: totalDue,
+        payment_plan: data.payment_plan,
+        duration_months: durationMonths, // Still store for compatibility
+        duration_value: Number(data.duration_value), // NEW
+        duration_unit: data.duration_unit, // NEW
+        installment_amount: installmentAmount,
+        repayment_start_date: data.repayment_start_date,
+        next_payment_date: data.status === 'disbursed' ? data.repayment_start_date : null,
+        status: data.status,
+        disbursed_date: data.status === 'disbursed' ? new Date().toISOString() : null,
+        created_by: user.id,
+        created_by_name: userName,
+        disbursed_by: data.status === 'disbursed' ? user.id : null,
+        disbursed_by_name: data.status === 'disbursed' ? userName : null,
+      }]).select().single();
 
       if (error) throw error;
 
-       // Audit trail
-    await supabase.from('audit_logs').insert([{
-      user_id: user.id,
-      user_name: userName,
-      user_role: profileData?.role || 'manager',
-      action: data.status === 'disbursed' ? 'CREATE_AND_DISBURSE_LOAN' : 'CREATE_LOAN',
-      table_name: 'loans',
-      record_id: loanData.id,
-      new_data: {
-        client_id: data.client_id,
-        loan_amount: principal,
-        interest_amount: interest,
-        total_due: totalDue,
-        status: data.status,
-      },
-    }]);
+      // Audit trail
+      await supabase.from('audit_logs').insert([{
+        user_id: user.id,
+        user_name: userName,
+        user_role: profileData?.role || 'manager',
+        action: data.status === 'disbursed' ? 'CREATE_AND_DISBURSE_LOAN' : 'CREATE_LOAN',
+        table_name: 'loans',
+        record_id: loanData.id,
+        new_data: {
+          client_id: data.client_id,
+          loan_amount: principal,
+          interest_amount: interest,
+          total_due: totalDue,
+          duration: `${data.duration_value} ${data.duration_unit}`,
+          status: data.status,
+        },
+      }]);
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardStats });
@@ -225,15 +233,33 @@ export default function NewLoanPage() {
                 required
               />
 
-              <Input
-                label="Duration (months)"
-                type="number"
-                placeholder="3"
-                {...register('duration_months', { required: 'Duration is required', min: 1 })}
-                error={errors.duration_months?.message}
-                helperText="Total loan period in months"
-                required
-              />
+              {/* NEW: Flexible Duration */}
+              <div>
+                <label className="block text-sm font-semibold text-secondary mb-2">
+                  Loan Duration <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="3"
+                    {...register('duration_value', { required: 'Duration is required', min: 1 })}
+                    error={errors.duration_value?.message}
+                  />
+                  <Select
+                    {...register('duration_unit', { required: true })}
+                    options={[
+                      { value: 'days', label: 'Days' },
+                      { value: 'weeks', label: 'Weeks' },
+                      { value: 'months', label: 'Months' },
+                    ]}
+                  />
+                </div>
+                {durationValue && durationUnit && (
+                  <p className="text-xs text-secondary mt-1">
+                    Duration: {durationValue} {durationUnit}
+                  </p>
+                )}
+              </div>
 
               <Input
                 label="Repayment Start Date"
@@ -246,59 +272,81 @@ export default function NewLoanPage() {
             </div>
           </div>
 
-          {/* Payment Terms */}
+{/* Payment Terms */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-primary mb-4 pb-3 border-b-2 border-sage">
               Payment Terms
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <Select
-                label="Payment Plan"
-                {...register('payment_plan', { required: true })}
-                options={[
-                  { value: 'daily', label: 'Daily' },
-                  { value: 'weekly', label: 'Weekly' },
-                  { value: 'monthly', label: 'Monthly' },
-                ]}
-                required
-              />
+              <div>
+                <Select
+                  label="Payment Plan"
+                  {...register('payment_plan', { required: true })}
+                  options={[
+                    { value: 'daily', label: 'Daily' },
+                    { value: 'weekly', label: 'Weekly' },
+                    { value: 'monthly', label: 'Monthly' },
+                  ]}
+                  required
+                />
+                <p className="text-xs text-secondary mt-1">How often payments should be made</p>
+              </div>
 
-              <Select
-                label="Disbursement Status"
-                {...register('status', { required: true })}
-                options={[
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'disbursed', label: 'Disbursed' },
-                ]}
-                required
-              />
+              <div>
+                <Select
+                  label="Disbursement Status"
+                  {...register('status', { required: true })}
+                  options={[
+                    { value: 'pending', label: 'Pending Approval' },
+                    { value: 'disbursed', label: 'Disburse Now' },
+                  ]}
+                  required
+                />
+                <p className="text-xs text-secondary mt-1">Set to 'Disburse Now' if giving money immediately</p>
+              </div>
             </div>
           </div>
-
+          
           {/* Calculation Summary */}
-          <div className="bg-lavender p-4 sm:p-6 rounded-lg space-y-3">
-            <h4 className="font-semibold text-primary mb-3">Loan Summary</h4>
-            <div className="flex justify-between text-sm sm:text-base">
-              <span>Principal Amount:</span>
-              <strong>{formatCurrency(loanAmount || 0)}</strong>
+          {loanAmount && interestAmount !== undefined && (
+            <div className="bg-lavender p-4 sm:p-6 rounded-lg space-y-3">
+              <h4 className="font-semibold text-primary mb-3">Loan Summary</h4>
+              <div className="flex justify-between text-sm sm:text-base">
+                <span>Principal Amount:</span>
+                <strong>{formatCurrency(loanAmount || 0)}</strong>
+              </div>
+              <div className="flex justify-between text-sm sm:text-base">
+                <span>Interest Amount {interestRate > 0 && `(${interestRate.toFixed(2)}%)`}:</span>
+                <strong>{formatCurrency(interestAmount || 0)}</strong>
+              </div>
+              <div className="flex justify-between text-base sm:text-lg font-bold text-primary pt-3 border-t-2 border-primary">
+                <span>Total Repayable:</span>
+                <strong>{formatCurrency(totalDue)}</strong>
+              </div>
+              
+              {/* Payment Schedule Details */}
+              {numberOfPayments > 0 && (
+                <>
+                  <div className="flex justify-between mt-4 pt-3 border-t border-primary/30 text-sm sm:text-base">
+                    <span>Loan Duration:</span>
+                    <strong>{durationValue} {durationUnit}</strong>
+                  </div>
+                  <div className="flex justify-between text-sm sm:text-base">
+                    <span>Payment Frequency:</span>
+                    <strong className="capitalize">{paymentPlan}</strong>
+                  </div>
+                  <div className="flex justify-between text-sm sm:text-base">
+                    <span>Number of Payments:</span>
+                    <strong>{numberOfPayments} payment{numberOfPayments !== 1 ? 's' : ''}</strong>
+                  </div>
+                  <div className="flex justify-between text-base sm:text-lg font-bold text-primary pt-2 border-t border-primary/30">
+                    <span>Per {paymentPlan === 'daily' ? 'Day' : paymentPlan === 'weekly' ? 'Week' : 'Month'}:</span>
+                    <strong>{formatCurrency(installmentAmount)}</strong>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex justify-between text-sm sm:text-base">
-              <span>Interest Amount {interestRate > 0 && `(${interestRate.toFixed(2)}%)`}:</span>
-              <strong>{formatCurrency(interestAmount || 0)}</strong>
-            </div>
-            <div className="flex justify-between text-base sm:text-lg font-bold text-primary pt-3 border-t-2 border-primary">
-              <span>Total Repayable:</span>
-              <strong>{formatCurrency(totalDue)}</strong>
-            </div>
-            <div className="flex justify-between mt-4 pt-3 border-t border-primary/30 text-sm sm:text-base">
-              <span>Number of Payments:</span>
-              <strong>{numberOfPayments} {paymentPlan} payment(s)</strong>
-            </div>
-            <div className="flex justify-between text-base sm:text-lg font-bold text-primary">
-              <span>Per {paymentPlan === 'daily' ? 'Day' : paymentPlan === 'weekly' ? 'Week' : 'Month'}:</span>
-              <strong>{formatCurrency(installmentAmount)}</strong>
-            </div>
-          </div>
+          )}
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">

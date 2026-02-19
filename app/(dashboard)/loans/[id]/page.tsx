@@ -22,17 +22,20 @@ interface Loan {
   installment_amount: number;
   payment_plan: string;
   duration_months: number;
+   duration_value?: number;   
+  duration_unit?: string; 
   status: string;
   disbursed_date?: string;
   repayment_start_date?: string;
   next_payment_date?: string;
   created_at: string;
-  created_by_name?: string;        // NEW: Who created the loan
-  disbursed_by_name?: string;      // NEW: Who disbursed the loan
+  created_by_name?: string;        
+  disbursed_by_name?: string;      
   clients?: {
     full_name: string;
     phone_number: string;
   };
+
 }
 
 interface Payment {
@@ -106,16 +109,31 @@ export default function LoanDetailsPage() {
   // Calculate remaining payments based on installment amount
   const paymentsRemaining = Math.ceil(balance / loan.installment_amount);
   
-  // Calculate original total payments
-  const getOriginalPaymentCount = () => {
-    const duration = loan.duration_months;
+  // For calculating payment count with flexible duration:
+const getOriginalPaymentCount = () => {
+  // If new duration fields exist, use them
+  if (loan.duration_value && loan.duration_unit) {
+    const totalDays = loan.duration_unit === 'days' ? loan.duration_value :
+                      loan.duration_unit === 'weeks' ? loan.duration_value * 7 :
+                      loan.duration_value * 30; // months
+    
     switch (loan.payment_plan) {
-      case 'daily': return duration * 30;
-      case 'weekly': return Math.ceil(duration * 4.33);
-      case 'monthly': return duration;
-      default: return duration;
+      case 'daily': return totalDays;
+      case 'weekly': return Math.ceil(totalDays / 7);
+      case 'monthly': return Math.ceil(totalDays / 30);
+      default: return Math.ceil(totalDays / 30);
     }
-  };
+  }
+  
+  // Fallback for old loans (backward compatibility)
+  const duration = loan.duration_months;
+  switch (loan.payment_plan) {
+    case 'daily': return duration * 30;
+    case 'weekly': return Math.ceil(duration * 4.33);
+    case 'monthly': return duration;
+    default: return duration;
+  }
+};
   
   const originalPaymentCount = getOriginalPaymentCount();
   const paymentsMade = payments.length;
@@ -357,8 +375,13 @@ export default function LoanDetailsPage() {
               </div>
 
               <div>
-                <div className="text-sm text-secondary">Original Duration</div>
-                <div className="font-semibold">{loan.duration_months} months</div>
+                <div className="text-sm text-secondary">Loan Duration</div>
+                <div className="font-semibold">
+                  {loan.duration_value && loan.duration_unit 
+                    ? `${loan.duration_value} ${loan.duration_unit}`
+                    : `${loan.duration_months} months` /* fallback for old loans */
+                  }
+                </div>
               </div>
 
               <div>
