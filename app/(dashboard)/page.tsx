@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { supabase } from '@/lib/supabase/client';
-import { PaymentAlerts } from '@/components/dashboard/PaymentAlerts';
+import { PaymentAlertsSummary } from '@/components/dashboard/PaymentAlertsSummary';
 import { useQuery } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-client';
 import { getClientName } from '@/lib/utils/supabase-helpers';
@@ -91,7 +91,7 @@ export default function DashboardPage() {
     <div className="max-w-7xl mx-auto">
       <Header title="Dashboard" />
 
-      <PaymentAlerts />
+      <PaymentAlertsSummary />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatsCard

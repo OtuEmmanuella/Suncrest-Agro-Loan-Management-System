@@ -9,10 +9,11 @@ import { Card } from '@/components/ui/card';
 import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-client';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { Search } from 'lucide-react';
 
 interface Loan {
   id: string;
@@ -29,11 +30,14 @@ interface Loan {
 
 export default function RepaymentsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const preselectedLoanId = searchParams.get('loan');
   const queryClient = useQueryClient();
-  const { user } = useAuth(); // Added: Get current user
+  const { user } = useAuth();
   
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [filteredLoans, setFilteredLoans] = useState<Loan[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -55,6 +59,19 @@ export default function RepaymentsPage() {
       }
     }
   }, [preselectedLoanId, loans]);
+
+  // Filter loans based on search query
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredLoans(loans);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = loans.filter(loan => 
+        loan.clients?.full_name.toLowerCase().includes(query)
+      );
+      setFilteredLoans(filtered);
+    }
+  }, [searchQuery, loans]);
 
   // Calculate balance after payment and payments reduced
   useEffect(() => {
@@ -87,6 +104,7 @@ export default function RepaymentsPage() {
       .order('created_at', { ascending: false });
 
     setLoans(data || []);
+    setFilteredLoans(data || []);
   };
 
   const handleLoanSelect = (loan: Loan) => {
@@ -125,9 +143,7 @@ export default function RepaymentsPage() {
 
     setLoading(true);
     try {
-      // ============================================
-      // USER TRACKING: Get current user's name
-      // ============================================
+      // Get current user's name
       const { data: profileData } = await supabase
         .from('user_profiles')
         .select('full_name, role')
@@ -136,9 +152,7 @@ export default function RepaymentsPage() {
 
       const userName = profileData?.full_name || 'Unknown User';
 
-      // ============================================
-      // INSERT PAYMENT WITH USER TRACKING
-      // ============================================
+      // Insert payment with user tracking
       const { data: paymentData, error } = await supabase
         .from('repayments')
         .insert([{
@@ -146,22 +160,36 @@ export default function RepaymentsPage() {
           amount: paymentAmount,
           payment_date: paymentDate,
           account_type: accountType,
-          recorded_by: user?.id,              // NEW: Track who recorded it
-          recorded_by_name: userName,         // NEW: Store their name
+          recorded_by: user?.id,
+          recorded_by_name: userName,
         }])
         .select()
         .single();
 
       if (error) throw error;
 
-      // ============================================
-      // AUDIT TRAIL: Log the payment recording
-      // ============================================
+      // Check if loan is now fully paid
+      const willBeFullyPaid = balanceAfterPayment === 0;
+      
+      if (willBeFullyPaid) {
+        // Mark loan as completed
+        await supabase
+          .from('loans')
+          .update({
+            status: 'completed',
+            completed_date: new Date().toISOString(),
+            completed_by: user?.id,
+            completed_by_name: userName,
+          })
+          .eq('id', selectedLoan.id);
+      }
+
+      // Audit trail
       await supabase.from('audit_logs').insert([{
         user_id: user?.id,
         user_name: userName,
         user_role: profileData?.role || 'manager',
-        action: 'RECORD_PAYMENT',
+        action: willBeFullyPaid ? 'COMPLETE_LOAN' : 'RECORD_PAYMENT',
         table_name: 'repayments',
         record_id: paymentData.id,
         new_data: {
@@ -170,12 +198,11 @@ export default function RepaymentsPage() {
           payment_date: paymentDate,
           account_type: accountType,
           client_name: selectedLoan.clients?.full_name,
+          loan_completed: willBeFullyPaid,
         },
       }]);
 
-      // ============================================
-      // INVALIDATE CACHE
-      // ============================================
+      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardStats });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentLoans });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loan(selectedLoan.id) });
@@ -186,8 +213,8 @@ export default function RepaymentsPage() {
       toast.success('Payment recorded successfully!');
       
       // Check if loan is fully paid
-      if (balanceAfterPayment === 0) {
-        toast.success('🎉 Loan fully repaid!', { duration: 5000 });
+      if (willBeFullyPaid) {
+        toast.success('🎉 Loan fully repaid and marked as completed!', { duration: 5000 });
       } else if (paymentsReduced > 0) {
         toast.success(`⚡ Great! You saved ${paymentsReduced} payment${paymentsReduced !== 1 ? 's' : ''}!`, { duration: 5000 });
       }
@@ -206,17 +233,44 @@ export default function RepaymentsPage() {
 
   return (
     <div>
-      <Header title="Record Repayment" />
+      <Header 
+        title="Record Repayment" 
+        action={
+          <Button variant="secondary" onClick={() => router.push('/loans/completed')}>
+            View Completed Loans
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Loans List */}
+        {/* Active Loans List - NOW WITH SEARCH AND SCROLL */}
         <Card>
-          <h3 className="text-lg font-semibold text-primary mb-4">Active Loans</h3>
-          <div className="space-y-3">
-            {loans.length === 0 ? (
-              <p className="text-center text-secondary py-8">No active loans</p>
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-primary mb-3">
+              Active Loans ({filteredLoans.length})
+            </h3>
+            
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary" size={18} />
+              <input
+                type="text"
+                placeholder="Search by client name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border-2 border-sage rounded-lg focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Scrollable Loans List - MAX HEIGHT WITH SCROLL */}
+          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+            {filteredLoans.length === 0 ? (
+              <p className="text-center text-secondary py-8">
+                {searchQuery ? 'No loans found matching your search' : 'No active loans'}
+              </p>
             ) : (
-              loans.map((loan) => {
+              filteredLoans.map((loan) => {
                 const balance = Number(loan.total_due) - Number(loan.total_paid || 0);
                 const progress = (Number(loan.total_paid || 0) / Number(loan.total_due)) * 100;
                 
@@ -254,7 +308,7 @@ export default function RepaymentsPage() {
           </div>
         </Card>
 
-        {/* Payment Form */}
+        {/* Payment Form - REMAINS THE SAME */}
         <Card>
           <h3 className="text-lg font-semibold text-primary mb-4">Payment Details</h3>
           {!selectedLoan ? (

@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '@/components/dashboard/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatsCard } from '@/components/dashboard/StatsCard';
-import { PaymentAlerts } from '@/components/dashboard/PaymentAlerts';
+import { PaymentAlertsSummary } from '@/components/dashboard/PaymentAlertsSummary';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -289,6 +289,34 @@ export default function ReportsPage() {
           });
         }
 
+           
+        if (filterType === 'all' || filterType === 'completed') {
+          let completedQuery = supabase
+            .from('loans')
+            .select('id, loan_amount, total_due, completed_date, completed_by_name, clients(full_name)')
+            .eq('status', 'completed')
+            .not('completed_date', 'is', null);
+          
+          if (startDate) completedQuery = completedQuery.gte('completed_date', startDate);
+          if (endDate) completedQuery = completedQuery.lte('completed_date', `${endDate}T23:59:59`);
+
+          const { data: completedLoans } = await completedQuery;
+          completedLoans?.forEach(l => {
+            const clientName = (l.clients as any)?.full_name || 'Unknown';
+            newTransactions.push({
+              id: l.id,
+              type: 'loan_disbursed', // reuse same type for now
+              description: `✅ Loan completed: ${clientName}`,
+              amount: l.total_due,
+              date: l.completed_date!,
+              user_name: l.completed_by_name || 'System',
+              link: `/loans/${l.id}`,
+            });
+            calculatedTotal += Number(l.total_due);
+          });
+        }
+
+
         if (filterType === 'payments') {
           let paymentQuery = supabase
             .from('repayments')
@@ -353,7 +381,7 @@ export default function ReportsPage() {
     <div className="max-w-7xl mx-auto">
       <Header title="Reports & Analytics" />
 
-      <PaymentAlerts />
+      <PaymentAlertsSummary />
 
       {/* Financial Overview */}
       <div className="mb-4 sm:mb-6">
@@ -427,6 +455,7 @@ export default function ReportsPage() {
                 { value: 'due_daily', label: 'Daily Plan Due' },
                 { value: 'due_weekly', label: 'Weekly Plan Due' },
                 { value: 'due_monthly', label: 'Monthly Plan Due' },
+                { value: 'completed', label: 'Completed Loans' },
               ]}
             />
             <div className="flex items-end">

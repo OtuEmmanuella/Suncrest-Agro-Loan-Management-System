@@ -16,6 +16,7 @@ import {
   TrendingUp,
   LogOut,
   FileText,
+  CheckCircle, // NEW: Icon for completed loans
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,6 +34,7 @@ export function Sidebar({ onClose }: SidebarProps) {
     { name: 'Clients', href: '/clients', icon: Users },
     { name: 'Loans', href: '/loans', icon: Wallet },
     { name: 'Pending', href: '/loans/pending', icon: Clock },
+    { name: 'Completed', href: '/loans/completed', icon: CheckCircle }, // NEW
     { name: 'Repayments', href: '/repayments', icon: CreditCard },
     { name: 'Reports', href: '/reports', icon: TrendingUp },
     ...(isAdmin ? [{ name: 'Audit Trail', href: '/audit', icon: FileText }] : []),
