@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@/lib/query-client';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Search } from 'lucide-react';
+import { calculateNextPaymentDate } from '@/lib/utils/business-days';
 
 interface Loan {
   id: string;
@@ -180,6 +181,22 @@ export default function RepaymentsPage() {
             completed_date: new Date().toISOString(),
             completed_by: user?.id,
             completed_by_name: userName,
+            next_payment_date: null, // No more payments needed
+          })
+          .eq('id', selectedLoan.id);
+      } else {
+        // ============================================
+        // CALCULATE NEXT PAYMENT DATE (SKIPS WEEKENDS)
+        // ============================================
+        const nextPaymentDate = calculateNextPaymentDate(
+          paymentDate,
+          selectedLoan.payment_plan as 'daily' | 'weekly' | 'monthly'
+        );
+
+        await supabase
+          .from('loans')
+          .update({
+            next_payment_date: nextPaymentDate,
           })
           .eq('id', selectedLoan.id);
       }
@@ -308,7 +325,7 @@ export default function RepaymentsPage() {
           </div>
         </Card>
 
-        {/* Payment Form - REMAINS THE SAME */}
+        {/* Payment Form */}
         <Card>
           <h3 className="text-lg font-semibold text-primary mb-4">Payment Details</h3>
           {!selectedLoan ? (
