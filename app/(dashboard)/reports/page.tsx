@@ -18,6 +18,10 @@ interface Stats {
   total_repaid: number;
   pending_amount: number;
   total_interest: number;
+  total_registration_fees: number; // NEW
+  total_admin_fees: number; // NEW
+  total_profit: number; // NEW (interest + fees)
+  total_revenue: number; // NEW (repaid + interest + fees)
   daily_loans: number;
   weekly_loans: number;
   monthly_loans: number;
@@ -55,6 +59,10 @@ export default function ReportsPage() {
     total_repaid: 0,
     pending_amount: 0,
     total_interest: 0,
+    total_registration_fees: 0,
+    total_admin_fees: 0,
+    total_profit: 0,
+    total_revenue: 0,
     daily_loans: 0,
     weekly_loans: 0,
     monthly_loans: 0,
@@ -76,52 +84,71 @@ export default function ReportsPage() {
   }, []);
 
   const fetchReports = async () => {
-    const { data: loans } = await supabase.from('loans').select('*');
-    const { data: clients } = await supabase.from('clients').select('created_at');
+  const { data: loans } = await supabase.from('loans').select('*');
+  const { data: clients } = await supabase.from('clients').select('created_at');
 
-    if (!loans) return;
+  if (!loans) return;
 
-    const disbursed = loans
-      .filter(l => l.status === 'disbursed' || l.status === 'completed')
-      .reduce((sum, l) => sum + Number(l.loan_amount), 0);
+  const disbursed = loans
+    .filter(l => l.status === 'disbursed' || l.status === 'completed')
+    .reduce((sum, l) => sum + Number(l.loan_amount), 0);
 
-    const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
+  const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
 
-    const pending = loans
-      .filter(l => l.status === 'disbursed')
-      .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
+  const pending = loans
+    .filter(l => l.status === 'disbursed')
+    .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
 
-    const totalInterest = loans
-      .filter(l => l.status === 'disbursed' || l.status === 'completed')
-      .reduce((sum, l) => {
-        const interest = Number(l.total_due) - Number(l.loan_amount);
-        return sum + interest;
-      }, 0);
+  const totalInterest = loans
+    .filter(l => l.status === 'disbursed' || l.status === 'completed')
+    .reduce((sum, l) => {
+      const interest = Number(l.total_due) - Number(l.loan_amount);
+      return sum + interest;
+    }, 0);
 
-    const daily = loans.filter(l => l.payment_plan === 'daily').length;
-    const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
-    const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
+  // NEW: Calculate total fees
+  const totalRegistrationFees = loans
+    .filter(l => l.status === 'disbursed' || l.status === 'completed')
+    .reduce((sum, l) => sum + Number(l.registration_fee || 0), 0);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
+  const totalAdminFees = loans
+    .filter(l => l.status === 'disbursed' || l.status === 'completed')
+    .reduce((sum, l) => sum + Number(l.admin_fee || 0), 0);
 
-    const pendingLoans = loans.filter(l => l.status === 'pending').length;
-    const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
+  // NEW: Calculate profit (interest + all fees)
+  const totalProfit = totalInterest + totalRegistrationFees + totalAdminFees;
 
-    setStats({
-      total_disbursed: disbursed,
-      total_repaid: repaid,
-      pending_amount: pending,
-      total_interest: totalInterest,
-      daily_loans: daily,
-      weekly_loans: weekly,
-      monthly_loans: monthly,
-      new_clients_count: newClients,
-      pending_disbursement_count: pendingLoans,
-      active_repayment_count: activeRepayments,
-    });
-  };
+  // NEW: Calculate revenue (repaid + interest + fees)
+  const totalRevenue = repaid + totalInterest + totalRegistrationFees + totalAdminFees;
+
+  const daily = loans.filter(l => l.payment_plan === 'daily').length;
+  const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
+  const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
+
+  const pendingLoans = loans.filter(l => l.status === 'pending').length;
+  const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
+
+  setStats({
+    total_disbursed: disbursed,
+    total_repaid: repaid,
+    pending_amount: pending,
+    total_interest: totalInterest,
+    total_registration_fees: totalRegistrationFees, // NEW
+    total_admin_fees: totalAdminFees, // NEW
+    total_profit: totalProfit, // NEW
+    total_revenue: totalRevenue, // NEW
+    daily_loans: daily,
+    weekly_loans: weekly,
+    monthly_loans: monthly,
+    new_clients_count: newClients,
+    pending_disbursement_count: pendingLoans,
+    active_repayment_count: activeRepayments,
+  });
+};
 
   const handleSearch = async () => {
     setSearching(true);
@@ -388,11 +415,51 @@ export default function ReportsPage() {
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Financial Overview</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatsCard title="Total Disbursed" value={stats.total_disbursed} icon="💰" isCurrency />
-          <StatsCard title="Total Interest" value={stats.total_interest} icon="📈" isCurrency />
           <StatsCard title="Total Repaid" value={stats.total_repaid} icon="✅" isCurrency />
           <StatsCard title="Pending Amount" value={stats.pending_amount} icon="⏳" isCurrency />
+          <StatsCard title="Total Revenue" value={stats.total_revenue} icon="📊" isCurrency />
         </div>
       </div>
+
+      
+      {/* NEW: Profit Breakdown */}
+<div className="mb-4 sm:mb-6">
+  <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Profit Breakdown</h2>
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <StatsCard 
+      title="Total Interest" 
+      value={stats.total_interest} 
+      icon="📈" 
+      isCurrency 
+    />
+    <StatsCard 
+      title="Total Registration Fees" 
+      value={stats.total_registration_fees} 
+      icon="📋" 
+      isCurrency 
+    />
+    <StatsCard 
+      title="Total Admin Fees" 
+      value={stats.total_admin_fees} 
+      icon="⚙️" 
+      isCurrency 
+    />
+    <Card className="bg-green-50 border-2 border-green-400">
+      <CardContent className="pt-4 pb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl">💵</span>
+          <span className="text-xs text-green-600 font-semibold">TOTAL PROFIT</span>
+        </div>
+        <div className="text-xl sm:text-2xl font-bold text-green-900">
+          {formatCurrency(stats.total_profit)}
+        </div>
+        <div className="text-xs text-green-700 mt-1">
+          Interest + Fees
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</div>
 
       {/* Loan Distribution */}
       <div className="mb-4 sm:mb-6">

@@ -119,3 +119,51 @@ export function convertToMonths(value: number, unit: DurationUnit): number {
   const days = convertToDays(value, unit);
   return Math.ceil(days / 30);
 }
+
+
+/**
+ * Calculate total fees (registration + admin)
+ */
+export function calculateTotalFees(
+  registrationFee: number = 0,
+  adminFee: number = 0
+): number {
+  return Number(registrationFee) + Number(adminFee);
+}
+
+/**
+ * Calculate total profit (interest + all fees)
+ */
+export function calculateTotalProfit(
+  interestAmount: number,
+  registrationFee: number = 0,
+  adminFee: number = 0
+): number {
+  return Number(interestAmount) + Number(registrationFee) + Number(adminFee);
+}
+
+/**
+ * Calculate total revenue (principal repaid + interest + fees)
+ */
+export function calculateTotalRevenue(
+  totalRepaid: number,
+  totalInterest: number,
+  totalRegistrationFees: number = 0,
+  totalAdminFees: number = 0
+): number {
+  return Number(totalRepaid) + Number(totalInterest) + Number(totalRegistrationFees) + Number(totalAdminFees);
+}
+
+/**
+ * Calculate outstanding fees
+ */
+export function calculateOutstandingFees(
+  registrationFee: number = 0,
+  adminFee: number = 0,
+  registrationFeePaid: number = 0,
+  adminFeePaid: number = 0
+): number {
+  const totalFees = Number(registrationFee) + Number(adminFee);
+  const totalPaid = Number(registrationFeePaid) + Number(adminFeePaid);
+  return Math.max(0, totalFees - totalPaid);
+}

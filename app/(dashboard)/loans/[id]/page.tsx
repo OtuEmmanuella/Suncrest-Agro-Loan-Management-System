@@ -11,6 +11,7 @@ import { formatCurrency, formatDate } from '@/lib/utils/formatting';
 import { ArrowLeft, TrendingUp, DollarSign, Calendar, CheckCircle, Clock, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { EditInterestModal } from '@/components/loans/EditInterestModal';
+import { EditFeeModal } from '@/components/loans/EditFeeModal';
 import { Edit } from 'lucide-react';
 
 interface Loan {
@@ -24,6 +25,10 @@ interface Loan {
   duration_months: number;
    duration_value?: number;   
   duration_unit?: string; 
+   registration_fee?: number; // NEW
+  admin_fee?: number; // NEW
+  registration_fee_paid?: number; // NEW
+  admin_fee_paid?: number; // NEW
   status: string;
   disbursed_date?: string;
   repayment_start_date?: string;
@@ -58,7 +63,7 @@ export default function LoanDetailsPage() {
 
   const { isAdmin } = useAuth();
   const [showEditModal, setShowEditModal] = useState(false);
-
+  const [showEditFeeModal, setShowEditFeeModal] = useState(false);
   useEffect(() => {
     if (loanId) {
       fetchLoanDetails();
@@ -290,6 +295,86 @@ const getOriginalPaymentCount = () => {
         </Card>
       )}
 
+      {/* Fee Information Card - NEW */}
+{((loan.registration_fee && loan.registration_fee > 0) || (loan.admin_fee && loan.admin_fee > 0)) && (
+  <Card className="mb-6 bg-purple-50 border-2 border-purple-300">
+    <CardContent className="pt-6">
+      <div className="flex items-start gap-4">
+        <div className="bg-purple-500 text-white rounded-full p-2">
+          <DollarSign size={24} />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-bold text-purple-900 mb-3">Fee Information</h3>
+          <p className="text-purple-800 text-sm mb-3">
+            These are separate one-time fees not included in loan repayment installments
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {loan.registration_fee && loan.registration_fee > 0 && (
+              <div className="bg-white rounded-lg p-3">
+                <div className="text-xs text-purple-600">Registration Fee</div>
+                <div className="font-bold text-purple-900 text-lg">
+                  {formatCurrency(loan.registration_fee)}
+                </div>
+                <div className="text-xs text-green-600 mt-1">
+                  Paid: {formatCurrency(loan.registration_fee_paid || 0)}
+                </div>
+                <div className="text-xs text-red-600">
+                  Balance: {formatCurrency(Math.max(0, loan.registration_fee - (loan.registration_fee_paid || 0)))}
+                </div>
+              </div>
+            )}
+            
+            {loan.admin_fee && loan.admin_fee > 0 && (
+              <div className="bg-white rounded-lg p-3">
+                <div className="text-xs text-purple-600">Admin Fee</div>
+                <div className="font-bold text-purple-900 text-lg">
+                  {formatCurrency(loan.admin_fee)}
+                </div>
+                <div className="text-xs text-green-600 mt-1">
+                  Paid: {formatCurrency(loan.admin_fee_paid || 0)}
+                </div>
+                <div className="text-xs text-red-600">
+                  Balance: {formatCurrency(Math.max(0, loan.admin_fee - (loan.admin_fee_paid || 0)))}
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-purple-100 rounded-lg p-3 md:col-span-2">
+              <div className="text-xs text-purple-600">Total Fees</div>
+              <div className="font-bold text-purple-900 text-xl">
+                {formatCurrency((loan.registration_fee || 0) + (loan.admin_fee || 0))}
+              </div>
+              <div className="text-xs text-green-600 mt-1">
+                Total Paid: {formatCurrency((loan.registration_fee_paid || 0) + (loan.admin_fee_paid || 0))}
+              </div>
+              <div className="text-xs text-red-600">
+                Total Balance: {formatCurrency(
+                  Math.max(0, (loan.registration_fee || 0) + (loan.admin_fee || 0) - ((loan.registration_fee_paid || 0) + (loan.admin_fee_paid || 0)))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {isAdmin && loan.status !== 'completed' && (
+            <div className="mt-4">
+              <Button
+                variant="secondary"
+                onClick={() => setShowEditFeeModal(true)}
+                className="w-full"
+                size="sm"
+              >
+                <Edit size={16} className="mr-2" />
+                Edit Fees (Admin)
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+)}
+
       {/* Progress Bar */}
       <Card className="mb-6">
         <CardContent className="pt-6">
@@ -460,6 +545,7 @@ const getOriginalPaymentCount = () => {
               </div>
             </div>
           </CardContent>
+
           {showEditModal && (
             <EditInterestModal
               loan={{
@@ -478,6 +564,24 @@ const getOriginalPaymentCount = () => {
               }}
             />
           )}
+
+          {showEditFeeModal && (
+  <EditFeeModal
+    loan={{
+      id: loan.id,
+      loan_amount: loan.loan_amount,
+      registration_fee: loan.registration_fee || 0,
+      admin_fee: loan.admin_fee || 0,
+      registration_fee_paid: loan.registration_fee_paid || 0,
+      admin_fee_paid: loan.admin_fee_paid || 0,
+      client_name: loan.clients?.full_name || '',
+    }}
+    onClose={() => setShowEditFeeModal(false)}
+    onUpdate={() => {
+      fetchLoanDetails();
+    }}
+  />
+)}
         </Card>
 
         {/* ============================================ */}
