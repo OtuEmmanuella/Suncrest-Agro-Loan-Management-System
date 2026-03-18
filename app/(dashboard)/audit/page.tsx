@@ -83,7 +83,9 @@ function ActionBadge({ action }: { action: string }) {
     UPDATE_CLIENT: 'bg-yellow-100 text-yellow-800',
     UPDATE_INTEREST_RATE: 'bg-orange-100 text-orange-800',
     UPDATE_LOAN: 'bg-yellow-100 text-yellow-800',
+    UPDATE_FEE: 'bg-pink-100 text-pink-800',
   };
+
   const color = colorMap[action] || 'bg-gray-100 text-gray-700';
   return (
     <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${color}`}>
@@ -259,6 +261,48 @@ function GenericChanges({ log }: { log: AuditLog }) {
   return null;
 }
 
+// Add this case before the default case in ChangesCell function
+
+function FeeChanges({ log }: { log: AuditLog }) {
+  const old = log.old_data;
+  const next = log.new_data;
+  if (!old || !next) return <span className="text-secondary text-xs italic">No data</span>;
+
+  const oldRegFee = Number(old.registration_fee ?? 0);
+  const newRegFee = Number(next.registration_fee ?? 0);
+  const oldAdminFee = Number(old.admin_fee ?? 0);
+  const newAdminFee = Number(next.admin_fee ?? 0);
+  const oldTotal = oldRegFee + oldAdminFee;
+  const newTotal = newRegFee + newAdminFee;
+  const totalDiff = newTotal - oldTotal;
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="border-l-2 border-orange-300 pl-2">
+        <div className="font-semibold text-secondary mb-0.5">Registration Fee</div>
+        <span className="text-red-500 line-through">{formatCurrency(oldRegFee)}</span>
+        {' → '}
+        <span className="text-green-700 font-semibold">{formatCurrency(newRegFee)}</span>
+      </div>
+      <div className="border-l-2 border-pink-300 pl-2">
+        <div className="font-semibold text-secondary mb-0.5">Admin Fee</div>
+        <span className="text-red-500 line-through">{formatCurrency(oldAdminFee)}</span>
+        {' → '}
+        <span className="text-green-700 font-semibold">{formatCurrency(newAdminFee)}</span>
+      </div>
+      <div className="border-l-2 border-purple-300 pl-2">
+        <div className="font-semibold text-secondary mb-0.5">Total Fees</div>
+        <span className="text-red-500 line-through">{formatCurrency(oldTotal)}</span>
+        {' → '}
+        <span className="text-green-700 font-semibold">{formatCurrency(newTotal)}</span>
+        <div className={`font-bold mt-0.5 ${totalDiff >= 0 ? 'text-orange-600' : 'text-green-700'}`}>
+          Diff: {totalDiff >= 0 ? '+' : ''}{formatCurrency(totalDiff)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChangesCell({ log }: { log: AuditLog }) {
   switch (log.action) {
     case 'UPDATE_CLIENT': return <ClientChanges log={log} />;
@@ -266,6 +310,7 @@ function ChangesCell({ log }: { log: AuditLog }) {
     case 'RECORD_PAYMENT': return <PaymentChanges log={log} />;
     case 'CREATE_LOAN':
     case 'CREATE_AND_DISBURSE_LOAN': return <LoanCreatedChanges log={log} />;
+    case 'UPDATE_FEE': return <FeeChanges log={log} />;
     default: return <GenericChanges log={log} />;
   }
 }

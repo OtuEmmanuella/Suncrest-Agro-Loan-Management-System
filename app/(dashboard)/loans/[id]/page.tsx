@@ -362,7 +362,7 @@ const getOriginalPaymentCount = () => {
                 variant="secondary"
                 onClick={() => setShowEditFeeModal(true)}
                 className="w-full"
-                size="sm"
+                
               >
                 <Edit size={16} className="mr-2" />
                 Edit Fees (Admin)
