@@ -17,11 +17,12 @@ interface Stats {
   total_disbursed: number;
   total_repaid: number;
   pending_amount: number;
+  total_loan_book: number;
+  active_repaid: number;          // repaid on active (disbursed) loans only
   total_interest: number;
-  total_registration_fees: number; // NEW
-  total_admin_fees: number; // NEW
-  total_profit: number; // NEW (interest + fees)
-  total_revenue: number; // NEW (repaid + interest + fees)
+  total_registration_fees: number;
+  total_admin_fees: number;
+  total_profit: number;
   daily_loans: number;
   weekly_loans: number;
   monthly_loans: number;
@@ -58,11 +59,12 @@ export default function ReportsPage() {
     total_disbursed: 0,
     total_repaid: 0,
     pending_amount: 0,
+    total_loan_book: 0,
+    active_repaid: 0,
     total_interest: 0,
     total_registration_fees: 0,
     total_admin_fees: 0,
     total_profit: 0,
-    total_revenue: 0,
     daily_loans: 0,
     weekly_loans: 0,
     monthly_loans: 0,
@@ -70,7 +72,7 @@ export default function ReportsPage() {
     pending_disbursement_count: 0,
     active_repayment_count: 0,
   });
-  
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [duePayments, setDuePayments] = useState<DuePayment[]>([]);
   const [startDate, setStartDate] = useState('');
@@ -84,71 +86,82 @@ export default function ReportsPage() {
   }, []);
 
   const fetchReports = async () => {
-  const { data: loans } = await supabase.from('loans').select('*');
-  const { data: clients } = await supabase.from('clients').select('created_at');
+    const { data: loans } = await supabase.from('loans').select('*');
+    const { data: clients } = await supabase.from('clients').select('created_at');
 
-  if (!loans) return;
+    if (!loans) return;
 
-  const disbursed = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => sum + Number(l.loan_amount), 0);
+    // Principal only — raw cash sent out
+    const disbursed = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => sum + Number(l.loan_amount), 0);
 
-  const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
+    // Everything collected so far (includes principal + interest repaid)
+    const repaid = loans.reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
 
-  const pending = loans
-    .filter(l => l.status === 'disbursed')
-    .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
+    // Still owed on active loans (total_due includes interest, so this is full remaining balance)
+    const pending = loans
+      .filter(l => l.status === 'disbursed')
+      .reduce((sum, l) => sum + (Number(l.total_due) - Number(l.total_paid || 0)), 0);
 
-  const totalInterest = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => {
-      const interest = Number(l.total_due) - Number(l.loan_amount);
-      return sum + interest;
-    }, 0);
+    // Total loan book = full face value of all active loans (principal + interest)
+    const totalLoanBook = loans
+      .filter(l => l.status === 'disbursed')
+      .reduce((sum, l) => sum + Number(l.total_due), 0);
 
-  // NEW: Calculate total fees
-  const totalRegistrationFees = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => sum + Number(l.registration_fee || 0), 0);
+    // Repaid on active loans only — excludes completed loans
+    const activeRepaid = loans
+      .filter(l => l.status === 'disbursed')
+      .reduce((sum, l) => sum + Number(l.total_paid || 0), 0);
 
-  const totalAdminFees = loans
-    .filter(l => l.status === 'disbursed' || l.status === 'completed')
-    .reduce((sum, l) => sum + Number(l.admin_fee || 0), 0);
+    // Interest = markup built into each loan's repayment schedule
+    const totalInterest = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => {
+        const interest = Number(l.total_due) - Number(l.loan_amount);
+        return sum + interest;
+      }, 0);
 
-  // NEW: Calculate profit (interest + all fees)
-  const totalProfit = totalInterest + totalRegistrationFees + totalAdminFees;
+    const totalRegistrationFees = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => sum + Number(l.registration_fee || 0), 0);
 
-  // NEW: Calculate revenue (repaid + interest + fees)
-  const totalRevenue = repaid + totalInterest + totalRegistrationFees + totalAdminFees;
+    const totalAdminFees = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => sum + Number(l.admin_fee || 0), 0);
 
-  const daily = loans.filter(l => l.payment_plan === 'daily').length;
-  const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
-  const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
+    // Profit = everything earned beyond principal
+    const totalProfit = totalInterest + totalRegistrationFees + totalAdminFees;
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
+    const daily = loans.filter(l => l.payment_plan === 'daily').length;
+    const weekly = loans.filter(l => l.payment_plan === 'weekly').length;
+    const monthly = loans.filter(l => l.payment_plan === 'monthly').length;
 
-  const pendingLoans = loans.filter(l => l.status === 'pending').length;
-  const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const newClients = clients?.filter(c => new Date(c.created_at) > thirtyDaysAgo).length || 0;
 
-  setStats({
-    total_disbursed: disbursed,
-    total_repaid: repaid,
-    pending_amount: pending,
-    total_interest: totalInterest,
-    total_registration_fees: totalRegistrationFees, // NEW
-    total_admin_fees: totalAdminFees, // NEW
-    total_profit: totalProfit, // NEW
-    total_revenue: totalRevenue, // NEW
-    daily_loans: daily,
-    weekly_loans: weekly,
-    monthly_loans: monthly,
-    new_clients_count: newClients,
-    pending_disbursement_count: pendingLoans,
-    active_repayment_count: activeRepayments,
-  });
-};
+    const pendingLoans = loans.filter(l => l.status === 'pending').length;
+    const activeRepayments = loans.filter(l => l.status === 'disbursed').length;
+
+    setStats({
+      total_disbursed: disbursed,
+      total_repaid: repaid,
+      pending_amount: pending,
+      total_loan_book: totalLoanBook,
+      active_repaid: activeRepaid,
+      total_interest: totalInterest,
+      total_registration_fees: totalRegistrationFees,
+      total_admin_fees: totalAdminFees,
+      total_profit: totalProfit,
+      daily_loans: daily,
+      weekly_loans: weekly,
+      monthly_loans: monthly,
+      new_clients_count: newClients,
+      pending_disbursement_count: pendingLoans,
+      active_repayment_count: activeRepayments,
+    });
+  };
 
   const handleSearch = async () => {
     setSearching(true);
@@ -156,10 +169,9 @@ export default function ReportsPage() {
     let calculatedTotal = 0;
 
     try {
-      // Handle Due Payments Filters
       if (filterType.startsWith('due_')) {
         const plan = filterType.replace('due_', '');
-        
+
         let query = supabase
           .from('loans')
           .select('id, installment_amount, next_payment_date, total_due, total_paid, payment_plan, clients(full_name)')
@@ -171,23 +183,23 @@ export default function ReportsPage() {
         }
 
         const { data: loans } = await query;
-        
+
         if (loans) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const dueList: DuePayment[] = [];
-          
+
           loans.forEach(loan => {
             const dueDate = new Date(loan.next_payment_date!);
             dueDate.setHours(0, 0, 0, 0);
-            
+
             const diffTime = today.getTime() - dueDate.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
+
             if (diffDays >= 0) {
               const balance = Number(loan.total_due) - Number(loan.total_paid || 0);
               const clientName = (loan.clients as any)?.full_name || 'Unknown';
-              
+
               dueList.push({
                 id: loan.id,
                 client_name: clientName,
@@ -198,35 +210,33 @@ export default function ReportsPage() {
                 payment_plan: loan.payment_plan,
                 days_overdue: diffDays,
               });
-              
+
               calculatedTotal += loan.installment_amount;
             }
           });
-          
+
           setDuePayments(dueList);
           setTotalAmount(calculatedTotal);
         }
-      }
-      // Handle Payment Filters with Plan
-      else if (filterType.startsWith('payments_')) {
+      } else if (filterType.startsWith('payments_')) {
         const plan = filterType.replace('payments_', '');
-        
+
         let paymentQuery = supabase
           .from('repayments')
           .select('id, amount, payment_date, recorded_by_name, loans(id, payment_plan, clients(full_name))');
-        
+
         if (startDate) paymentQuery = paymentQuery.gte('payment_date', startDate);
         if (endDate) paymentQuery = paymentQuery.lte('payment_date', `${endDate}T23:59:59`);
 
         const { data: payments } = await paymentQuery;
-        
+
         payments?.forEach(payment => {
           const loanPlan = (payment.loans as any)?.payment_plan;
-          
+
           if (plan === 'all' || loanPlan === plan) {
             const clientName = (payment.loans as any)?.clients?.full_name || 'Unknown';
             const loanId = (payment.loans as any)?.id;
-            
+
             newTransactions.push({
               id: payment.id,
               type: 'payment',
@@ -237,18 +247,16 @@ export default function ReportsPage() {
               link: loanId ? `/loans/${loanId}` : undefined,
               payment_plan: loanPlan,
             });
-            
+
             calculatedTotal += Number(payment.amount);
           }
         });
-      }
-      // Original Filters
-      else {
+      } else {
         if (filterType === 'all' || filterType === 'clients') {
           let query = supabase
             .from('clients')
             .select('id, full_name, created_at, created_by_name');
-          
+
           if (startDate) query = query.gte('created_at', startDate);
           if (endDate) query = query.lte('created_at', `${endDate}T23:59:59`);
 
@@ -271,7 +279,7 @@ export default function ReportsPage() {
             .select('id, loan_amount, total_due, disbursed_date, disbursed_by_name, clients(full_name)')
             .eq('status', 'disbursed')
             .not('disbursed_date', 'is', null);
-          
+
           if (startDate) loanQuery = loanQuery.gte('disbursed_date', startDate);
           if (endDate) loanQuery = loanQuery.lte('disbursed_date', `${endDate}T23:59:59`);
 
@@ -296,7 +304,7 @@ export default function ReportsPage() {
             .from('loans')
             .select('id, loan_amount, total_due, created_at, created_by_name, clients(full_name)')
             .eq('status', 'pending');
-          
+
           if (startDate) pendingQuery = pendingQuery.gte('created_at', startDate);
           if (endDate) pendingQuery = pendingQuery.lte('created_at', `${endDate}T23:59:59`);
 
@@ -316,14 +324,13 @@ export default function ReportsPage() {
           });
         }
 
-           
         if (filterType === 'all' || filterType === 'completed') {
           let completedQuery = supabase
             .from('loans')
             .select('id, loan_amount, total_due, completed_date, completed_by_name, clients(full_name)')
             .eq('status', 'completed')
             .not('completed_date', 'is', null);
-          
+
           if (startDate) completedQuery = completedQuery.gte('completed_date', startDate);
           if (endDate) completedQuery = completedQuery.lte('completed_date', `${endDate}T23:59:59`);
 
@@ -332,7 +339,7 @@ export default function ReportsPage() {
             const clientName = (l.clients as any)?.full_name || 'Unknown';
             newTransactions.push({
               id: l.id,
-              type: 'loan_disbursed', // reuse same type for now
+              type: 'loan_disbursed',
               description: `✅ Loan completed: ${clientName}`,
               amount: l.total_due,
               date: l.completed_date!,
@@ -343,12 +350,11 @@ export default function ReportsPage() {
           });
         }
 
-
         if (filterType === 'payments') {
           let paymentQuery = supabase
             .from('repayments')
             .select('id, amount, payment_date, recorded_by_name, loans(id, clients(full_name))');
-          
+
           if (startDate) paymentQuery = paymentQuery.gte('payment_date', startDate);
           if (endDate) paymentQuery = paymentQuery.lte('payment_date', `${endDate}T23:59:59`);
 
@@ -413,66 +419,114 @@ export default function ReportsPage() {
       {/* Financial Overview */}
       <div className="mb-4 sm:mb-6">
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Financial Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <StatsCard title="Total Disbursed" value={stats.total_disbursed} icon="💰" isCurrency />
-          <StatsCard title="Total Repaid" value={stats.total_repaid} icon="✅" isCurrency />
-          <StatsCard title="Pending Amount" value={stats.pending_amount} icon="⏳" isCurrency />
-          <StatsCard title="Total Revenue" value={stats.total_revenue} icon="📊" isCurrency />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          <StatsCard
+            title="Total Disbursed"
+            value={stats.total_disbursed}
+            icon="💰"
+            isCurrency
+            info="The raw principal paid out to borrowers across all disbursed and completed loans. Does not include interest or fees — just the actual cash that left your hands."
+          />
+          <StatsCard
+            title="Total Repaid"
+            value={stats.total_repaid}
+            icon="✅"
+            isCurrency
+            info="All cash ever collected across every loan — including loans that are already completed. Because it covers all statuses, this will always be higher than Active Repaid. Principal + interest combined."
+          />
+          <StatsCard
+            title="Active Repaid"
+            value={stats.active_repaid}
+            icon="🔄"
+            isCurrency
+            info="Cash collected specifically on loans still being repaid (status = disbursed). Excludes completed loans. This + Pending Amount should equal your Total Loan Book: Active Repaid + Pending = Loan Book."
+          />
+          <StatsCard
+            title="Pending Amount"
+            value={stats.pending_amount}
+            icon="⏳"
+            isCurrency
+            info="What active borrowers still owe: total_due minus total_paid for every loan in disbursed status. Includes interest not yet collected. Does NOT include completed loans."
+          />
+          <StatsCard
+            title="Total Loan Book"
+            value={stats.total_loan_book}
+            icon="📒"
+            isCurrency
+            info="Full face value of all currently active loans (status = disbursed) — principal + interest combined. Active Repaid + Pending Amount = this number."
+          />
         </div>
       </div>
 
-      
-      {/* NEW: Profit Breakdown */}
-<div className="mb-4 sm:mb-6">
-  <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Profit Breakdown</h2>
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-    <StatsCard 
-      title="Total Interest" 
-      value={stats.total_interest} 
-      icon="📈" 
-      isCurrency 
-    />
-    <StatsCard 
-      title="Total Registration Fees" 
-      value={stats.total_registration_fees} 
-      icon="📋" 
-      isCurrency 
-    />
-    <StatsCard 
-      title="Total Admin Fees" 
-      value={stats.total_admin_fees} 
-      icon="⚙️" 
-      isCurrency 
-    />
-    <Card className="bg-green-50 border-2 border-green-400">
-      <CardContent className="pt-4 pb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-2xl">💵</span>
-          <span className="text-xs text-green-600 font-semibold">TOTAL PROFIT</span>
+      {/* Profit Breakdown */}
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Profit Breakdown</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <StatsCard
+            title="Total Interest"
+            value={stats.total_interest}
+            icon="📈"
+            isCurrency
+            info="The interest charged across all disbursed and completed loans. Calculated as total_due minus loan_amount per loan — this is the markup built into each repayment schedule."
+          />
+          <StatsCard
+            title="Total Registration Fees"
+            value={stats.total_registration_fees}
+            icon="📋"
+            isCurrency
+            info="Sum of the registration_fee field across all disbursed and completed loans. This is the upfront fee charged when a loan is registered — separate from interest and admin charges."
+          />
+          <StatsCard
+            title="Total Admin Fees"
+            value={stats.total_admin_fees}
+            icon="⚙️"
+            isCurrency
+            info="Sum of the admin_fee field across all disbursed and completed loans. Administrative charges applied per loan on top of interest and registration fees."
+          />
+          <Card className="bg-green-50 border-2 border-green-400">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">💵</span>
+                <span className="text-xs text-green-600 font-semibold">TOTAL PROFIT</span>
+              </div>
+              <div className="text-xl sm:text-2xl font-bold text-green-900">
+                {formatCurrency(stats.total_profit)}
+              </div>
+              <div className="text-xs text-green-700 mt-1">
+                Interest + Registration fees + Admin fees
+              </div>
+            </CardContent>
+          </Card>
         </div>
-        <div className="text-xl sm:text-2xl font-bold text-green-900">
-          {formatCurrency(stats.total_profit)}
-        </div>
-        <div className="text-xs text-green-700 mt-1">
-          Interest + Fees
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-</div>
+      </div>
 
       {/* Loan Distribution */}
       <div className="mb-4 sm:mb-6">
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Loan Distribution by Plan (Click to View)</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <div onClick={() => handleLoanPlanClick('daily')} className="cursor-pointer hover:opacity-80 transition">
-            <StatsCard title="Daily Loans" value={stats.daily_loans} icon="📅" />
+            <StatsCard
+              title="Daily Loans"
+              value={stats.daily_loans}
+              icon="📅"
+              info="Total number of loans (any status) where the repayment plan is daily. Borrowers on this plan make a payment every single day. Click the card to view the full list."
+            />
           </div>
           <div onClick={() => handleLoanPlanClick('weekly')} className="cursor-pointer hover:opacity-80 transition">
-            <StatsCard title="Weekly Loans" value={stats.weekly_loans} icon="📊" />
+            <StatsCard
+              title="Weekly Loans"
+              value={stats.weekly_loans}
+              icon="📊"
+              info="Total number of loans (any status) where the repayment plan is weekly. Borrowers pay once every 7 days. Click the card to view the full list."
+            />
           </div>
           <div onClick={() => handleLoanPlanClick('monthly')} className="cursor-pointer hover:opacity-80 transition">
-            <StatsCard title="Monthly Loans" value={stats.monthly_loans} icon="📈" />
+            <StatsCard
+              title="Monthly Loans"
+              value={stats.monthly_loans}
+              icon="📈"
+              info="Total number of loans (any status) where the repayment plan is monthly. Borrowers make one payment per month. Click the card to view the full list."
+            />
           </div>
         </div>
       </div>
@@ -481,9 +535,24 @@ export default function ReportsPage() {
       <div className="mb-4 sm:mb-6">
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Recent Activity</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          <StatsCard title="New Clients (30 days)" value={stats.new_clients_count} icon="👤" />
-          <StatsCard title="Pending Disbursement" value={stats.pending_disbursement_count} icon="⏸️" />
-          <StatsCard title="Active Repayments" value={stats.active_repayment_count} icon="🔄" />
+          <StatsCard
+            title="New Clients (30 days)"
+            value={stats.new_clients_count}
+            icon="👤"
+            info="Clients whose account was created within the last 30 days. Gives a quick read on how much new business has come in recently."
+          />
+          <StatsCard
+            title="Pending Disbursement"
+            value={stats.pending_disbursement_count}
+            icon="⏸️"
+            info="Loans that have been approved and created but not yet physically paid out to the borrower (status = pending). These are sitting in your queue waiting to be disbursed."
+          />
+          <StatsCard
+            title="Active Repayments"
+            value={stats.active_repayment_count}
+            icon="🔄"
+            info="Loans currently being repaid by borrowers (status = disbursed). These are live loans where the money has gone out and you are collecting payments."
+          />
         </div>
       </div>
 
@@ -491,7 +560,7 @@ export default function ReportsPage() {
       <Card>
         <CardContent className="pt-4">
           <h3 className="text-sm sm:text-base font-semibold text-primary mb-3">Search & Filter</h3>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <Input
               label="Start Date"
@@ -544,8 +613,8 @@ export default function ReportsPage() {
                     key={payment.id}
                     onClick={() => router.push(`/loans/${payment.id}`)}
                     className={`p-3 rounded-lg border-2 cursor-pointer hover:shadow-md transition-all ${
-                      payment.days_overdue > 7 
-                        ? 'bg-red-50 border-red-300' 
+                      payment.days_overdue > 7
+                        ? 'bg-red-50 border-red-300'
                         : payment.days_overdue > 3
                         ? 'bg-orange-50 border-orange-300'
                         : 'bg-yellow-50 border-yellow-300'
@@ -555,12 +624,12 @@ export default function ReportsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold truncate">{payment.client_name}</div>
                         <div className="text-xs text-secondary">
-                          {payment.days_overdue === 0 ? 'Due Today' : `${payment.days_overdue} days overdue`} • 
-                          Due: {formatDate(payment.next_payment_date)} • 
+                          {payment.days_overdue === 0 ? 'Due Today' : `${payment.days_overdue} days overdue`} •
+                          Due: {formatDate(payment.next_payment_date)} •
                           {payment.payment_plan.toUpperCase()} Plan
                         </div>
                         <div className="text-xs mt-1">
-                          Expected: <strong>{formatCurrency(payment.installment_amount)}</strong> • 
+                          Expected: <strong>{formatCurrency(payment.installment_amount)}</strong> •
                           Balance: <strong>{formatCurrency(payment.balance)}</strong>
                         </div>
                       </div>
@@ -571,7 +640,7 @@ export default function ReportsPage() {
                   </div>
                 ))}
               </div>
-              
+
               <div className="mt-4 p-3 sm:p-4 bg-red-100 border-2 border-red-400 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-sm sm:text-base font-semibold text-red-900">Total Due Amount:</span>
@@ -614,7 +683,7 @@ export default function ReportsPage() {
                   </div>
                 ))}
               </div>
-              
+
               {totalAmount > 0 && (
                 <div className="mt-4 p-3 sm:p-4 bg-green-100 border-2 border-green-400 rounded-lg">
                   <div className="flex justify-between items-center">
