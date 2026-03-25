@@ -18,6 +18,7 @@ interface Stats {
   total_repaid: number;
   pending_amount: number;
   total_loan_book: number;
+  total_ever_issued: number;      // total_due across all disbursed + completed loans
   active_repaid: number;          // repaid on active (disbursed) loans only
   total_interest: number;
   total_registration_fees: number;
@@ -60,6 +61,7 @@ export default function ReportsPage() {
     total_repaid: 0,
     pending_amount: 0,
     total_loan_book: 0,
+    total_ever_issued: 0,
     active_repaid: 0,
     total_interest: 0,
     total_registration_fees: 0,
@@ -109,6 +111,11 @@ export default function ReportsPage() {
       .filter(l => l.status === 'disbursed')
       .reduce((sum, l) => sum + Number(l.total_due), 0);
 
+    // All-time loan value = total_due across every loan ever issued (active + completed)
+    const totalEverIssued = loans
+      .filter(l => l.status === 'disbursed' || l.status === 'completed')
+      .reduce((sum, l) => sum + Number(l.total_due), 0);
+
     // Repaid on active loans only — excludes completed loans
     const activeRepaid = loans
       .filter(l => l.status === 'disbursed')
@@ -149,6 +156,7 @@ export default function ReportsPage() {
       total_repaid: repaid,
       pending_amount: pending,
       total_loan_book: totalLoanBook,
+      total_ever_issued: totalEverIssued,
       active_repaid: activeRepaid,
       total_interest: totalInterest,
       total_registration_fees: totalRegistrationFees,
@@ -419,13 +427,27 @@ export default function ReportsPage() {
       {/* Financial Overview */}
       <div className="mb-4 sm:mb-6">
         <h2 className="text-base sm:text-lg font-semibold text-primary mb-3">Financial Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-4">
           <StatsCard
             title="Total Disbursed"
             value={stats.total_disbursed}
             icon="💰"
             isCurrency
             info="The raw principal paid out to borrowers across all disbursed and completed loans. Does not include interest or fees — just the actual cash that left your hands."
+          />
+          <StatsCard
+            title="All-Time Loan Value"
+            value={stats.total_ever_issued}
+            icon="🏦"
+            isCurrency
+            info="The full face value of every loan ever issued — active and completed combined. Sum of total_due across all loans, so it includes both principal and interest for every loan you've ever given out."
+          />
+          <StatsCard
+            title="Total Loan Book"
+            value={stats.total_loan_book}
+            icon="📒"
+            isCurrency
+            info="Full face value of all currently active loans (status = disbursed) — principal + interest combined. Active Repaid + Pending Amount = this number."
           />
           <StatsCard
             title="Total Repaid"
@@ -447,13 +469,6 @@ export default function ReportsPage() {
             icon="⏳"
             isCurrency
             info="What active borrowers still owe: total_due minus total_paid for every loan in disbursed status. Includes interest not yet collected. Does NOT include completed loans."
-          />
-          <StatsCard
-            title="Total Loan Book"
-            value={stats.total_loan_book}
-            icon="📒"
-            isCurrency
-            info="Full face value of all currently active loans (status = disbursed) — principal + interest combined. Active Repaid + Pending Amount = this number."
           />
         </div>
       </div>
